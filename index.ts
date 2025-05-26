@@ -1,5 +1,10 @@
 import "frida-il2cpp-bridge"
-import {DMLog} from "./utils/dmlog";
+//import {DMLog} from "./utils/dmlog";
+
+
+//import {DMLog} from "./utils/dmlog";
+//DMLog.d('MAIN', 'HELLO FridaContainer, please add code on the index.ts');
+/*import {DMLog} from "./utils/dmlog";
 import {FCCommon} from "./utils/FCCommon";
 //import {DianPing} from "./agent/dp/dp";
 import {FCAnd} from "./utils/FCAnd";
@@ -10,11 +15,11 @@ function main() {
     FCAnd.hook_log();
     //FCAnd.traceJavaMethods_custom(['E:java.lang.String'], {'java.lang.String': {white: true, methods: ['substring', 'getChars']}});
 
-    /*FCAnd.traceJavaMethods(
+    FCAnd.traceJavaMethods(
         ['E:java.lang.String'],
         {'java.lang.String': {white: true, methods:['substring', 'getChars']}},
         "match_str_show_stacks"
-    );*/
+    );
     //FCAnd.jni.traceAllJNISimply();
     //FCAnd.anti.anti_ptrace();
     // FCAnd.Anti.anti_fgets();
@@ -67,3 +72,4 @@ if (ObjC.available) {
     FCCommon.printModules();
     FCCommon.dump_module("Hopper Disassembler v4", "/Users/dmemory/Downloads/");
 }
+*/

@@ -1,3 +1,4 @@
+
 export class DMLog {
     static bDebug: boolean = true;
 
