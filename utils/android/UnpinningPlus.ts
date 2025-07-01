@@ -247,7 +247,7 @@ exports.UnpinningPlus = function () {
             TrustHostnameVerifier = Java.registerClass({
                 name: 'org.wooyun.TrustHostnameVerifier',
                 implements: [HostnameVerifier],
-                method: {
+                methods: {
                     verify: function(hostname, session) {
                         return true;
                     }
