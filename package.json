@@ -1,12 +1,12 @@
 {
-  "name": "frida-js-api",
-  "version": "1.0.1",
+  "name": "com-boombox-projecty",
+  "version": "1.0.10",
   "description": "fridaContainer written in TypeScript and JavaScript",
   "private": false,
-  "main": "index.ts",
+  "main": "index.js",
   "type": "module",
   "scripts": {
-    "build:esbuild": "npm exec esbuild -- --bundle --outfile=dist/index.js --watch index.ts",
+    "build:esbuild": "npm exec esbuild -- --bundle --format=esm --outfile=../com.rookie.v/api/index.js --watch index.ts",
     "prepare": "npm run build",
     "build": "frida-compile index.ts -o index.js",
     "watch": "frida-compile index.ts -o index.js -w",
@@ -22,3 +22,4 @@
     "@types/frida-gum": "^18.8.2"
   }
 }
+

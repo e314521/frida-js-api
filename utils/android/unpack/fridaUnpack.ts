@@ -6,17 +6,15 @@ export class fridaUnpack {
     static unpack_common() {
         // var OpenCommon = Module.findExportByName("libart.so", "_ZN3art7DexFile10OpenCommonEPKhjRKNSt3__112basic_stringIcNS3_11char_traitsIcEENS3_9allocatorIcEEEEjPKNS_10OatDexFileEbbPS9_PNS0_12VerifyResultE");
         // console.log("OpenCommon: " + OpenCommon);
-
-        
-        var exportMethods = Module.load('libart.so').enumerateExports();
+        var exportMethods = Module.enumerateExportsSync('libart.so');
         exportMethods.forEach(function (expmthd) {
             if (expmthd.name.indexOf("OpenCommon") > -1 || expmthd.name.indexOf("OpenMemory") > -1) {
                 console.log("unpack_common: " + JSON.stringify(expmthd));
                 Interceptor.attach(expmthd.address, {
                     onEnter: function (args) {
                         // console.log(`=== ${resMethod.name} entry`);
-                        if (args[1].readU32() == fridaUnpack.DEX_MAGIC) {
-                            fridaUnpack.dexrec.push(args[1]);
+                        if (Memory.readU32(args[1]) == DEX_MAGIC) {
+                            dexrec.push(args[1]);
                         }
                     }
                 });
@@ -80,13 +78,13 @@ export class fridaUnpack {
                                 var args = Java.array('Ljava.lang.Object;', [classloader]);
                                 var classlist = loadAllClass.invoke(null, args);
                                 console.log("start dump dex ");
-                                for (var i in fridaUnpack.dexrec) {
-                                    if (fridaUnpack.dexrec[i].readU32() == fridaUnpack.DEX_MAGIC) {
-                                        var dex_len = fridaUnpack.dexrec[i].add(0x20).readU32();
+                                for (var i in dexrec) {
+                                    if (Memory.readU32(dexrec[i]) == DEX_MAGIC) {
+                                        var dex_len = Memory.readU32(dexrec[i].add(0x20));
                                         var dumppath = filesDir.toString() + "/" + dex_len.toString(0x10) + ".dex";
                                         console.log(dumppath);
                                         var dumpdexfile = new File(dumppath, "wb");
-                                        dumpdexfile.write(fridaUnpack.dexrec[i].readByteArray(dex_len));
+                                        dumpdexfile.write(Memory.readByteArray(dexrec[i], dex_len));
                                         dumpdexfile.close();
                                         console.log("write file to " + dumppath);
                                     }
