@@ -37,6 +37,7 @@ export class unpinning {
 				'[Ljavax.net.ssl.KeyManager;', '[Ljavax.net.ssl.TrustManager;', 'java.security.SecureRandom');
 			try {
 				// Override the init method, specifying the custom TrustManager
+
 				SSLContext_init.implementation = function (keyManager, trustManager, secureRandom) {
 					console.log('[+] Bypassing Trustmanager (Android < 7) request');
 					SSLContext_init.call(this, keyManager, TrustManagers, secureRandom);
@@ -182,7 +183,7 @@ export class unpinning {
 			///////////////////////////////////////
 			try {
 				var OpenSSLEngineSocketImpl_Activity = Java.use('com.android.org.conscrypt.OpenSSLEngineSocketImpl');
-				OpenSSLSocketImpl_Activity.verifyCertificateChain.overload('[Ljava.lang.Long;', 'java.lang.String').implementation = function (a, b) {
+				OpenSSLEngineSocketImpl_Activity.verifyCertificateChain.overload('[Ljava.lang.Long;', 'java.lang.String').implementation = function (a, b) {
 					console.log('[+] Bypassing OpenSSLEngineSocketImpl Conscrypt: ' + b);
 				};
 			} catch (err) {
@@ -369,6 +370,7 @@ export class unpinning {
 			}
 
 			try {
+				let CertificatePinner = Java.use("okhttp3.CertificatePinner");
 				CertificatePinner.check.overload('java.lang.String', '[Ljava.security.cert.Certificate;').implementation = function (str, certificateArr) {
 					console.log('[+] bypass CertificatePinner {2}: ' + str);
 					return;
