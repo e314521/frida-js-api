@@ -5,8 +5,8 @@
  * @time: 2020/12/22 8:51 下午
  * @desc:
  */
-import {FCCommon} from "../../FCCommon";
-import {Jni} from "../jnimgr";
+import {FCCommon} from "../../FCCommon.js";
+import {Jni} from "../jnimgr.js";
 
 class BacktraceJSONContainer {
     public readonly address: NativePointer;

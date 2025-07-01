@@ -5,11 +5,13 @@
  * @time: 2020/6/18 5:14 PM
  * @desc:
  */
-import {FCCommon} from "../FCCommon"
-import {DMLog} from "../dmlog";
-import {MethodData} from "./jni/method_data";
+import {FCCommon} from "../FCCommon.js"
+import {DMLog} from "../dmlog.js";
+import {MethodData} from "./jni/method_data.js";
 // @ts-ignore
-import JNI_ENV_METHODS from "./jni/jni_env.json";
+import {JNIEnv} from "./jni/jni_env.js";
+const JNI_ENV_METHODS = JNIEnv.JNI_ENV_METHODS
+  
 // struct JNINativeInterface :
 // https://android.googlesource.com/platform/libnativehelper/+/master/include_jni/jni.h#129
 const jni_struct_array = [
@@ -374,7 +376,7 @@ export namespace Jni {
     }
 
     export function getJNIFunctionIndex(funcName: string) {
-        return JNI_ENV_METHODS.findIndex(method => method.name === funcName);
+        return JNI_ENV_METHODS.findIndex((method:any) => method.name === funcName);
     }
 
     export function record_method_info() {

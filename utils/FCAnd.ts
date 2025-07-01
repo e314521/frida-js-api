@@ -5,11 +5,12 @@
  * @time: 2020/4/16 5:03 PM
  * @desc:
  */
-const fridaUnpack = require('./android/unpack/fridaUnpack');
-import {Anti} from "./android/Anti";
-import {Jni} from "./android/jnimgr";
-import {FCCommon} from "./FCCommon";
-import {DMLog} from "./dmlog";
+import {fridaUnpack} from './android/unpack/fridaUnpack.js';
+import {Anti} from "./android/Anti.js";
+import {Jni} from "./android/jnimgr.js";
+import {FCCommon} from "./FCCommon.js";
+import {DMLog} from "./dmlog.js";
+
 
 export namespace FCAnd {
     export const anti = Anti;

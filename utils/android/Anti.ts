@@ -5,13 +5,13 @@
  * @time: 2020/4/16 5:03 PM
  * @desc:
  */
-import {DMLog} from "../dmlog";
-import {FCCommon} from "../FCCommon";
-import {FCAnd} from "../FCAnd";
+import {DMLog} from "../dmlog.js";
+import {FCCommon} from "../FCCommon.js";
+import {FCAnd} from "../FCAnd.js";
 
+import {sslPinningPass} from "./repinning.js";
 
-const sslPinningPass = require("./repinning");
-const unpinning = require("./multi_unpinning");
+import {unpinning} from "./multi_unpinning.js";
 
 export namespace Anti {
 

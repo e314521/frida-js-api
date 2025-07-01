@@ -1,24 +1,24 @@
 {
-  "name": "com-phoenix-read",
-  "version": "1.0.10",
+  "name": "frida-js-api",
+  "version": "1.0.1",
   "description": "fridaContainer written in TypeScript and JavaScript",
   "private": false,
   "main": "index.ts",
+  "type": "module",
   "scripts": {
+    "build:esbuild": "npm exec esbuild -- --bundle --outfile=dist/index.js --watch index.ts",
     "prepare": "npm run build",
     "build": "frida-compile index.ts -o index.js",
-    "watch": "frida-compile index.ts -o index.js -w"
+    "watch": "frida-compile index.ts -o index.js -w",
+    "dmlog": "frida-compile ./utils/dmlog.ts -o ./utils/dmlog.js"
   },
   "dependencies": {
-    "@types/base64-js": "^1.3.0",
-    "@types/frida-gum": "^18.4.3",
-    "@types/node": "^18.11.9",
-    "base64-ts": "^2.0.1",
-    "frida-il2cpp-bridge": "^0.9.0"
+    "frida-il2cpp-bridge": "^0.12.0"
   },
   "devDependencies": {
-    "frida-compile": "^18.0.0",
-    "ts-patch": "^3.0.2",
-    "ts-transformer-inline-file": "^0.2.0"
+    "@types/node": "^18.11.9",
+    "esbuild": "^0.25.2",
+    "frida-compile": "^16.4.2",
+    "@types/frida-gum": "^18.8.2"
   }
 }

@@ -1,5 +1,5 @@
-import {DMLog} from "./dmlog";
-import {StdString} from "./StdString";
+import {DMLog} from "./dmlog.js";
+import {StdString} from "./StdString.js";
 
 /**
  * @author: xingjun.xyf
