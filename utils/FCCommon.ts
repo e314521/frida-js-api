@@ -1,6 +1,6 @@
 import {DMLog} from "./dmlog.js";
 import {StdString} from "./StdString.js";
-
+import Java from "frida-java-bridge";
 /**
  * @author: xingjun.xyf
  * @contact: deathmemory@163.com
@@ -9,14 +9,14 @@ import {StdString} from "./StdString.js";
  * @desc: 跨平台可通用的方法
  */
 
-export namespace FCCommon {
+export class FCCommon {
 
     /**
      * 打印指定层数的 sp，并输出 module 信息 (如果有）
      * @param {CpuContext} context
      * @param {number} number
      */
-    export function showStacksModInfo(context: CpuContext, number: number) {
+    static showStacksModInfo(context: CpuContext, number: number) {
         var sp: NativePointer = context.sp;
 
         for (var i = 0; i < number; i++) {
@@ -32,7 +32,7 @@ export namespace FCCommon {
      * @param {NativePointer} addr
      * @returns {string}
      */
-    export function getModuleByAddr(addr: NativePointer): Module | null {
+    static getModuleByAddr(addr: NativePointer): Module | null {
         var result = null;
         Process.enumerateModules().forEach(function (module: Module) {
             if (module.base <= addr && addr <= (module.base.add(module.size))) {
@@ -49,7 +49,7 @@ export namespace FCCommon {
      * @param {CpuContext} context
      * @returns {NativePointer}
      */
-    export function getLR(context: CpuContext) {
+    static getLR(context: CpuContext) {
         if (Process.arch == 'arm') {
             return (context as ArmCpuContext).lr;
         }
@@ -68,7 +68,7 @@ export namespace FCCommon {
      * @param {string} saveDir      如果 Android 环境下应该保存在 /data/data/com.package.name/ 目录下，
      *                              否则可能会遇到权限问题，导致保存失败。
      */
-    export function dump_module(moduleName: string, saveDir: string) {
+    static dump_module(moduleName: string, saveDir: string) {
         const tag = 'dump_module';
         const module = Process.getModuleByName(moduleName);
         const base = module.base;
@@ -89,10 +89,10 @@ export namespace FCCommon {
                 f.close();
             }
         }
-        catch (e) {
-            const fopen_ptr = Module.getExportByName(null, 'fopen');
-            const fwrite_ptr = Module.getExportByName(null, 'fwrite');
-            const fclose_ptr = Module.getExportByName(null, 'fclose');
+        catch (e) {            
+            const fopen_ptr = Module.findGlobalExportByName( 'fopen');
+            const fwrite_ptr = Module.findGlobalExportByName('fwrite');
+            const fclose_ptr = Module.findGlobalExportByName( 'fclose');
             if (fopen_ptr && fwrite_ptr && fclose_ptr) {
                 const fopen_func = new NativeFunction(fopen_ptr, 'pointer', ['pointer', 'pointer']);
                 const fwrite_func = new NativeFunction(fwrite_ptr, 'int', ['pointer', 'int', 'int', 'pointer']);
@@ -115,7 +115,7 @@ export namespace FCCommon {
         }
     }
 
-    export function dump2file(addr: NativePointer, size: number, savePath: string) {
+    static dump2file(addr: NativePointer, size: number, savePath: string) {
         DMLog.i('dump2file', `addr: ${addr.toString(16)}, size: ${size}`);
         let file = new File(savePath, "w+");
         let byteArr = addr.readByteArray(size);
@@ -125,22 +125,22 @@ export namespace FCCommon {
         file.close();
     }
 
-    export function printModules() {
+    static printModules() {
         Process.enumerateModules().forEach(function (module) {
             DMLog.i('enumerateModules', JSON.stringify(module));
         });
     }
 
-    export function str2hexstr(str: string) {
+    static str2hexstr(str: string) {
         let res = str.split("").map(x => x.charCodeAt(0).toString(16).padStart(2, "0")).join("");
         return res;
     }
 
-    export function str2hexArray(str: string) {
+    static str2hexArray(str: string) {
         return str.split("").map(x => x.charCodeAt(0));
     }
 
-    export function arrayBuffer2Hex(buf: any) {
+    static arrayBuffer2Hex(buf: any) {
         return [...new Uint8Array(buf)]
             .map(x => x.toString(16).padStart(2, '0'))
             .join(' ');
@@ -154,7 +154,7 @@ export namespace FCCommon {
      *
      * 用例 FCCommon.stalkerTrace("libxxx.so", addr_2333F);
      */
-    export function stalkerTrace(moduleName: string, address: NativePointer) {
+    static stalkerTrace(moduleName: string, address: NativePointer) {
         const tag = 'stalkerTrace';
         let module_object = Process.findModuleByName(moduleName);
         if (null == module_object) {
@@ -198,7 +198,7 @@ export namespace FCCommon {
                                         let module = Process.findModuleByAddress(pc);
                                         if (module) {
                                             try {
-                                                let diff_regs = get_diff_regs(context, pre_regs);
+                                                let diff_regs = FCCommon.get_diff_regs(context, pre_regs);
                                                 if (module.name == module_object?.name) {
                                                     DMLog.i(tag, `${module.name} ! ${pc.sub(module.base)} ${Instruction.parse(pc)} ${JSON.stringify(diff_regs)}`);
                                                     // console.log(module.name + " ! " + pc.sub(module.base), Instruction.parse(ptr(pc)), JSON.stringify(diff_regs));
@@ -225,7 +225,7 @@ export namespace FCCommon {
         });
     }
 
-    export function get_diff_regs(context: any, pre_regs: any) {
+    static get_diff_regs(context: any, pre_regs: any) {
         var diff_regs = {};
         for (const [reg_name, reg_value] of
             Object.entries(JSON.parse(JSON.stringify(context)))) {
@@ -238,12 +238,12 @@ export namespace FCCommon {
         return diff_regs;
     }
 
-    export function newStdString() {
+    static newStdString() {
         return new StdString();
     }
 
     // 定义复制文件的函数
-    export function copyFile(srcPath: string, dstPath: string) {
+    static copyFile(srcPath: string, dstPath: string) {
         let tmp = File.readAllBytes(srcPath);
         File.writeAllBytes(dstPath, tmp);
     }

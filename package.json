@@ -6,20 +6,20 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "build:esbuild": "npm exec esbuild -- --bundle --format=esm --outfile=../com.rookie.v/api/index.js --watch index.ts",
+    "build:esbuild": "npm exec esbuild -- --bundle --format=esm --outdir=../com.rookie.v/api --watch index.ts",
     "prepare": "npm run build",
     "build": "frida-compile index.ts -o index.js",
     "watch": "frida-compile index.ts -o index.js -w",
     "dmlog": "frida-compile ./utils/dmlog.ts -o ./utils/dmlog.js"
   },
   "dependencies": {
-    "frida-il2cpp-bridge": "^0.12.0"
+    "frida-il2cpp-bridge": "^0.12.0",
+    "frida-java-bridge": "^7.0.4"
   },
   "devDependencies": {
+    "@types/frida-gum": "^19.0.0",
     "@types/node": "^18.11.9",
     "esbuild": "^0.25.2",
-    "frida-compile": "^16.4.2",
-    "@types/frida-gum": "^18.8.2"
+    "frida-compile": "^19.0.4"
   }
 }
-

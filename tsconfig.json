@@ -8,6 +8,6 @@
         "strict": false,
         "sourceMap": false
     },
-    "files": ["index.ts"],
+    "files": ["index.ts","index.d.ts"],
     "exclude": ["dist"]
   }

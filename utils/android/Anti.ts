@@ -13,7 +13,7 @@ import {sslPinningPass} from "./repinning.js";
 
 import {unpinning} from "./multi_unpinning.js";
 
-export namespace Anti {
+export class Anti {
 
     /**
      * 动态加载 dex
@@ -40,20 +40,20 @@ export namespace Anti {
      *
      * @deprecated The method should not be used
      */
-    export function anti_InMemoryDexClassLoader(callbackfunc: any) {
+     static anti_InMemoryDexClassLoader(callbackfunc: any) {
         throw new Error("deprecated method, should use:  FCAnd.useWithInMemoryDexClassLoader");
     }
 
-    export function anti_debug() {
-        anti_fgets();
-        anti_exit();
-        anti_fork();
-        anti_kill();
-        anti_ptrace();
+     static anti_debug() {
+        Anti.anti_fgets();
+        Anti.anti_exit();
+        Anti.anti_fork();
+        Anti.anti_kill();
+        Anti.anti_ptrace();
     }
 
-    export function anti_exit() {
-        const exit_ptr = Module.findExportByName(null, '_exit');
+     static anti_exit() {
+        const exit_ptr = Module.getGlobalExportByName( '_exit');
         DMLog.i('anti_exit', "exit_ptr : " + exit_ptr);
         if (null == exit_ptr) {
             return;
@@ -68,8 +68,8 @@ export namespace Anti {
         }, 'int', ['int', 'int']));
     }
 
-    export function anti_kill() {
-        const kill_ptr = Module.findExportByName(null, 'kill');
+     static anti_kill() {
+        const kill_ptr = Module.getGlobalExportByName('kill');
         DMLog.i('anti_kill', "kill_ptr : " + kill_ptr);
 
         if (null == kill_ptr) {
@@ -94,9 +94,9 @@ export namespace Anti {
      * State->(package) S
      * wchan->SyS_epoll_wait
      */
-    export function anti_fgets() {
+     static anti_fgets() {
         const tag = 'anti_fgets';
-        const fgetsPtr = Module.findExportByName(null, 'fgets');
+        const fgetsPtr = Module.getGlobalExportByName('fgets');
         DMLog.i(tag, 'fgets addr: ' + fgetsPtr);
         if (null == fgetsPtr) {
             return;
@@ -155,8 +155,8 @@ export namespace Anti {
         }, 'pointer', ['pointer', 'int', 'pointer']));
     }
 
-    export function anti_ptrace() {
-        var ptrace = Module.findExportByName(null, "ptrace");
+     static anti_ptrace() {
+        var ptrace = Module.getGlobalExportByName("ptrace");
         if (null != ptrace) {
             DMLog.i('anti_ptrace', "ptrace addr: " + ptrace);
             // Interceptor.attach(ptrace, {
@@ -174,8 +174,8 @@ export namespace Anti {
     /**
      * 适用于每日优鲜的反调试
      */
-    export function anti_fork() {
-        var fork_addr = Module.findExportByName(null, "fork");
+     static anti_fork() {
+        var fork_addr = Module.getGlobalExportByName("fork");
         DMLog.i('anti_fork', "fork_addr : " + fork_addr);
         if (null != fork_addr) {
             // Interceptor.attach(fork_addr, {
@@ -190,11 +190,11 @@ export namespace Anti {
         }
     }
 
-    export function anti_sslLoadCert(cerPath: string) {
+     static anti_sslLoadCert(cerPath: string) {
         sslPinningPass.ssl_load_cert(cerPath);
     }
 
-    export function anti_ssl_unpinning() {
+     static anti_ssl_unpinning() {
         setTimeout(unpinning.multi_unpinning, 0);
     }
 
@@ -208,7 +208,7 @@ export namespace Anti {
      * 44 BF 6F F0 CD 00 70 47  41 07 44 BF 6F F0 C9 00
      * 70 47 C1 07 1C BF 6F F0  C7 00 70 47 C1 01 44 BF
      */
-    export function anti_ssl_cronet_32() {
+     static anti_ssl_cronet_32() {
         var moduleName = "libsscronet.so"; // 模块名
         var searchBytes = '01 06 44 BF 6F F0 CE 00 70 47 81 04 44 BF 6F F0 95 00 70 47 41 01 44 BF 6F F0 D8 00 70 47 41 06 44 BF 6F F0 CD 00 70 47 41 07 44 BF 6F F0 C9 00 70 47 C1 07 1C BF 6F F0 C7 00 70 47 C1 01 44 BF'; // 搜索的特征值
 

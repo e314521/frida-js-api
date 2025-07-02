@@ -1,5 +1,5 @@
 
-
+import Java from "frida-java-bridge";
 
 function isProbablyUtf8(buffer) {
     const BufferCls = Java.use("okio.Buffer");

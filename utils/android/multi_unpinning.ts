@@ -4,7 +4,7 @@
 	Run with:
 	frida -U -f [APP_ID] -l frida_multiple_unpinning.js --no-pause
 */
-
+import Java from 'frida-java-bridge';
 export class unpinning {
 	static multi_unpinning() {
 		Java.perform(function () {

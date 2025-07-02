@@ -1,9 +1,8 @@
 import { DMLog } from "./utils/dmlog.js";
-import { FCCommon } from "./utils/FCCommon.js";
 import { FCAnd } from "./utils/FCAnd.js";
 import { okhttp } from "./utils/okhttp.js";
 
-
+import Java from "frida-java-bridge";
 
 
 function hookMethods(targetClass: string, targetMethod: string, start: any = null, end: any = null) {
@@ -18,8 +17,13 @@ function hookMethods(targetClass: string, targetMethod: string, start: any = nul
             hook[targetMethod].overloads[i].implementation = function () {
                 var log = targetClassMethod + "("
                 var retval = null
+    // 导出一个函数，用于获取堆栈信息
                 if (start) {
+        // 使用Java.use方法获取android.util.Log类
                     retval = start(this, arguments)
+        // 使用Java.use方法获取java.lang.Exception类，并调用其$new()方法创建一个新的异常对象
+        // 然后调用android.util.Log类的getStackTraceString方法，将异常对象作为参数传入，获取堆栈信息
+        // 最后将堆栈信息转换为字符串并返回
                 } else {
                     for (var j = 0; j < arguments.length; j++) {
                         log = log + arguments[j]
@@ -96,4 +100,4 @@ function hookClassMethods(className: string, methodName: string) {
     });
 }
 
-export { DMLog, FCCommon, FCAnd , okhttp, hookMethods, hookClassMethods};
+export { DMLog, FCAnd , okhttp, hookMethods, hookClassMethods};

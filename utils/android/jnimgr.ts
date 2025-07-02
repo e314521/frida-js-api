@@ -5,6 +5,7 @@
  * @time: 2020/6/18 5:14 PM
  * @desc:
  */
+import Java from 'frida-java-bridge';
 import {FCCommon} from "../FCCommon.js"
 import {DMLog} from "../dmlog.js";
 import {MethodData} from "./jni/method_data.js";
@@ -250,22 +251,17 @@ const jni_struct_array = [
     "GetObjectRefType"
 ];
 
-export namespace Jni {
+export class Jni {
     // 定义保存函数名、签名和 jmethodID 的结构体
-    type MethodInfo = {
-        className: string,
-        methodName: string,
-        signature: string,
-        isStatic: boolean,
-    }
+    
 
     // 保存函数名、签名和 jmethodID 的 Map
-    const methodMap = new Map<string, { methodName: string, signature: string, methodId: NativePointer, isStatic: boolean }>();
+    static methodMap = new Map<string, { methodName: string, signature: string, methodId: NativePointer, isStatic: boolean }>();
 
 
-    var have_record_method_info: Boolean = false;
+    static have_record_method_info: Boolean = false;
 
-    export function getJNIFunctionAdress(jnienv_addr: NativePointer, func_name: string) {
+    static getJNIFunctionAdress(jnienv_addr: NativePointer, func_name: string) {
         let idx = jni_struct_array.indexOf(func_name);
         if (-1 == idx) {
             DMLog.e('getJNIFunctionAdress', `func name: ${func_name} not found!`);
@@ -275,7 +271,7 @@ export namespace Jni {
         return jnienv_addr.add(offset).readPointer();
     }
 
-    export function getJNIAddr(name: string) {
+    static getJNIAddr(name: string) {
         var env = Java.vm.getEnv();
         var env_ptr = env.handle.readPointer();
         const addr = Jni.getJNIFunctionAdress(env_ptr, name);
@@ -283,7 +279,7 @@ export namespace Jni {
         return addr;
     }
 
-    export function hookJNI(name: string, callbacksOrProbe: InvocationListenerCallbacks | InstructionProbeCallback,
+    static hookJNI(name: string, callbacksOrProbe: InvocationListenerCallbacks | InstructionProbeCallback,
                             data?: NativePointerValue) {
         const addr = Jni.getJNIAddr(name);
         console.log("Jni.getJNIAddr: " + name + ", addr: " + addr);
@@ -293,7 +289,7 @@ export namespace Jni {
     /**
      * 分离仓库地址：https://github.com/deathmemory/fridaRegstNtv
      */
-    export function hook_registNatives() {
+    static hook_registNatives() {
         const tag = 'fridaRegstNtv';
         Jni.hookJNI("RegisterNatives", {
             onEnter: function (args) {
@@ -341,22 +337,22 @@ export namespace Jni {
      * trace 所有 Jni 方法
      * 可以配合 `python/android/traceLogCleaner.py` 脚本，格式化输出日志
      */
-    export function traceAllJNISimply() {
+    static traceAllJNISimply() {
         // 遍历 Hook Jni 函数
-        jni_struct_array.forEach(traceJNICore);
+        jni_struct_array.forEach(Jni.traceJNICore);
     }
 
-    export function traceJNI(nameArray: string[]) {
+    static traceJNI(nameArray: string[]) {
         nameArray.forEach(function (name) {
-            let idx = getJNIFunctionIndex(name);
+            let idx = Jni.getJNIFunctionIndex(name);
             DMLog.i('traceJNI', 'name: ' + name + 'idx: ' + idx);
             if (-1 != idx) {
-                traceJNICore(name, idx);
+                Jni.traceJNICore(name, idx);
             }
         });
     }
 
-    export function traceJNICore(func_name: string, idx: number) {
+    static traceJNICore(func_name: string, idx: number) {
         Jni.record_method_info();
         if (!func_name.includes("reserved")) {
             Jni.hookJNI(func_name, {
@@ -375,12 +371,12 @@ export namespace Jni {
         }
     }
 
-    export function getJNIFunctionIndex(funcName: string) {
+    static getJNIFunctionIndex(funcName: string) {
         return JNI_ENV_METHODS.findIndex((method:any) => method.name === funcName);
     }
 
-    export function record_method_info() {
-        if (have_record_method_info == false) {
+    static record_method_info() {
+        if (Jni.have_record_method_info == false) {
             // hook GetMethodID 函数
             Jni.hookJNI("GetMethodID", {
                 onEnter: function (args) {
@@ -390,7 +386,7 @@ export namespace Jni {
                 },
                 onLeave: function (retval) {
                     // 保存函数名、签名和 jmethodID 到 Map 中
-                    methodMap.set(retval.toString(), {
+                    Jni.methodMap.set(retval.toString(), {
                         methodName: this.methodName,
                         signature: this.signature,
                         methodId: retval,
@@ -407,7 +403,7 @@ export namespace Jni {
                 },
                 onLeave: function (retval) {
                     // 保存函数名、签名和 jmethodID 到 Map 中
-                    methodMap.set(retval.toString(), {
+                    Jni.methodMap.set(retval.toString(), {
                         methodName: this.methodName,
                         signature: this.signature,
                         methodId: retval,
@@ -416,13 +412,13 @@ export namespace Jni {
                 }
             });
 
-            have_record_method_info = true;
+            Jni.have_record_method_info = true;
         }
     }
 
     // 获取函数名、签名和 jmethodID 的函数
-    export function getMethodInfo(methodId: NativePointer) {
-        return methodMap.get(methodId.toString());
+    static getMethodInfo(methodId: NativePointer) {
+        return Jni.methodMap.get(methodId.toString());
     }
 
 }

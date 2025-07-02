@@ -5,6 +5,7 @@
  * @time: 2020/12/22 8:51 下午
  * @desc:
  */
+import Java from 'frida-java-bridge';
 import {FCCommon} from "../../FCCommon.js";
 import {Jni} from "../jnimgr.js";
 

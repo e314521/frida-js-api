@@ -1,4 +1,6 @@
 
+
+import Java from "frida-java-bridge";
 export class fridaUnpack {
     static DEX_MAGIC = 0x0A786564;
     static dexrec = [];

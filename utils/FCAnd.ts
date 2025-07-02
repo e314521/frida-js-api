@@ -10,93 +10,94 @@ import {Anti} from "./android/Anti.js";
 import {Jni} from "./android/jnimgr.js";
 import {FCCommon} from "./FCCommon.js";
 import {DMLog} from "./dmlog.js";
+import Java from "frida-java-bridge";
 
+export class FCAnd {
+    static anti = Anti;
+    static jni = Jni;
+    static common = FCCommon;
+    static firstdiscovery: boolean = false;
+    
 
-export namespace FCAnd {
-    export const anti = Anti;
-    export const jni = Jni;
-    export const common = FCCommon;
-    var firstdiscovery = false;
-
-    export function getStacks() {
+    static getStacks() {
         return Java.use("android.util.Log").getStackTraceString(Java.use("java.lang.Exception").$new()) + "";
     }
 
-    export function showStacks() {
+    static showStacks() {
         Java.perform(function () {
-            DMLog.d('showStacks', getStacks());  // 打印堆栈
+            DMLog.d('showStacks', FCAnd.getStacks());  // 打印堆栈
         });
     }
 
-    export function hook_uri(bShowStacks: boolean) {
+    static hook_uri(bShowStacks: boolean) {
         // android.net.Uri
         const Uri = Java.use('android.net.Uri');
         Uri.parse.implementation = function (str: string) {
             DMLog.i('hook_uri', 'str: ' + str);
             if (bShowStacks) {
-                showStacks();
+                FCAnd.showStacks();
             }
             return this.parse(str);
         }
     }
 
-    export function hook_url(bShowStacks: boolean) {
+    static hook_url(bShowStacks: boolean) {
         // java.net.URL;
         const URL = Java.use('java.net.URL');
         URL.$init.overload('java.lang.String').implementation = function (url: string) {
             DMLog.i('hook_url', 'url: ' + url);
             if (bShowStacks) {
-                showStacks();
+                FCAnd.showStacks();
             }
             return this.$init(url);
         }
     }
 
-    export function hook_JSONObject_getString(pKey: string) {
+    static hook_JSONObject_getString(pKey: string) {
         const JSONObject = Java.use('org.json.JSONObject');
         JSONObject.getString.implementation = function (key: string) {
             if (key == pKey) {
                 DMLog.i('hook_JSONObject_getString', 'found key: ' + key);
-                showStacks();
+                FCAnd.showStacks();
             }
             return this.getString(key);
         }
     }
 
-    export function hook_fastJson(pKey: string) {
+    static hook_fastJson(pKey: string) {
         // coord: (106734,0,22) | addr: Lcom/alibaba/fastjson/JSONObject; | loc: ?
         const fastJson = Java.use('com/alibaba/fastjson/JSONObject');
         fastJson.getString.implementation = function (key: string) {
             if (key == pKey) {
                 DMLog.i('hook_fastJson getString', 'found key: ' + key);
-                showStacks();
+                FCAnd.showStacks();
             }
             return this.getString(key);
         };
         fastJson.getJSONArray.implementation = function (key: string) {
             if (key == pKey) {
                 DMLog.i('hook_fastJson getJSONArray', 'found key: ' + key);
-                showStacks();
+                FCAnd.showStacks();
             }
             return this.getString(key);
         };
         fastJson.getJSONObject.implementation = function (key: string) {
             if (key == pKey) {
                 DMLog.i('hook_fastJson getJSONObject', 'found key: ' + key);
-                showStacks();
+                FCAnd.showStacks();
             }
             return this.getString(key);
         };
         fastJson.getInteger.implementation = function (key: string) {
             if (key == pKey) {
                 DMLog.i('hook_fastJson getJSONObject', 'found key: ' + key);
-                showStacks();
+                FCAnd.showStacks();
             }
             return this.getString(key);
         };
     }
 
-    export function hook_Map(pKey: string, accurately: boolean) {
+    static hook_Map(pKey: string, accurately: boolean) {
         const Map = Java.use('java.util.Map');
         Map.put.implementation = function (key: string, val: string) {
             var bRes = false;
@@ -109,7 +110,7 @@ export namespace FCAnd {
             if (bRes) {
                 DMLog.i('map', 'key: ' + key);
                 DMLog.i('map', 'val: ' + val);
-                showStacks();
+                FCAnd.showStacks();
             }
             this.put(key, val);
         };
@@ -126,13 +127,13 @@ export namespace FCAnd {
             if (null != key1 && bRes) {
                 DMLog.i('LinkedHashMap', 'key: ' + key1);
                 DMLog.i('LinkedHashMap', 'val: ' + val);
-                showStacks();
+                FCAnd.showStacks();
             }
             return this.put(key1, val);
         };
     }
 
-    export function hook_log() {
+    static hook_log() {
         const Log = Java.use('android.util.Log');
         Log.d.overload('java.lang.String', 'java.lang.String')
             .implementation = function (tag: string, content: string) {
@@ -166,7 +167,7 @@ export namespace FCAnd {
         };
     }
 
-    export function dump_dex_common() {
+    static dump_dex_common() {
         fridaUnpack.unpack_common();
     }
 
@@ -176,7 +177,7 @@ export namespace FCAnd {
      * 当程序启动完成后，
      * 调用 rpc.exports.ddc() 即可完成 dump dex
      */
-    export function dump_dex_loadAllClass() {
+    static dump_dex_loadAllClass() {
         let tag = 'dd_loadAllClass';
         var dex_maps: Record<string, number> = {};
         var module = Process.findModuleByName("libart.so")!;
@@ -311,8 +312,8 @@ export namespace FCAnd {
         }
     }
 
-    export function traceLoadlibrary() {
-        const dlopen_ptr = Module.findExportByName(null, 'dlopen');
+    static traceLoadlibrary() {
+        const dlopen_ptr = Module.findGlobalExportByName('dlopen');
         if (null != dlopen_ptr) {
             DMLog.i('traceLoadlibrary', 'dlopen_ptr: ' + dlopen_ptr);
             Interceptor.attach(dlopen_ptr, {
@@ -326,15 +327,15 @@ export namespace FCAnd {
         }
     }
 
-    export function showModules() {
+    static showModules() {
         const modules = Process.enumerateModules();
         modules.forEach(function (value, index, array) {
             DMLog.i('showModules', JSON.stringify(value));
         })
     }
 
-    export function traceFopen() {
-        const open_ptr = Module.findExportByName(null, 'fopen');
+    static traceFopen() {
+        const open_ptr = Module.findGlobalExportByName('fopen');
         if (null != open_ptr) {
             DMLog.i('traceFopen', 'fopen_ptr: ' + open_ptr);
             Interceptor.attach(open_ptr, {
@@ -353,7 +354,7 @@ export namespace FCAnd {
      * @param {NativePointer} addr
      * @param {string} str
      */
-    export function writeMemory(addr: NativePointer, str: string) {
+    static writeMemory(addr: NativePointer, str: string) {
         Memory.protect(addr, str.length, 'rwx');
         addr.writeAnsiString(str);
 
@@ -364,7 +365,7 @@ export namespace FCAnd {
      * @param res
      * @returns {any}
      */
-    export function newString(res: any) {
+    static newString(res: any) {
         if (null == res) {
             return null;
         }
@@ -372,7 +373,7 @@ export namespace FCAnd {
         return String.$new(res);
     }
 
-    export function getApplicationContext() {
+    static getApplicationContext() {
         const ActivityThread = Java.use('android.app.ActivityThread');
         const Context = Java.use('android.content.Context');
         const ctx = Java.cast(ActivityThread.currentApplication().getApplicationContext(), Context);
@@ -383,7 +384,7 @@ export namespace FCAnd {
      * 将 java byte array 打印成 16 进制字符输出
      * @param jbytes
      */
-    export function printByteArray(jbytes: any) {
+    static printByteArray(jbytes: any) {
         // return JSON.stringify(jbytes);
         var result = "";
         for (var i = 0; i < jbytes.length; ++i) {
@@ -398,7 +399,7 @@ export namespace FCAnd {
      * 打印 java.util.HashMap
      * @param data
      */
-    export function printHashMap(data: any) {
+    static printHashMap(data: any) {
         let result = Java.cast(data, Java.use('java.util.HashMap'));
         let keys = result.keySet().toArray(); // 获取键集合并转换为数组
         for (let i = 0; i < keys.length; i++) {
@@ -411,7 +412,7 @@ export namespace FCAnd {
     /**
      * trace java methods 默认类
      */
-    export const tjm_default_cls = [
+    static tjm_default_cls = [
         // 'E:javax.crypto.Cipher',
         // 'E:javax.crypto.spec.SecretKeySpec',
         // 'E:javax.crypto.spec.IvParameterSpec',
@@ -426,7 +427,7 @@ export namespace FCAnd {
     /**
      * trace java methods 对 java.lang.String 类中的默认白名单方法名
      */
-    export const tjm_default_white_detail: any = {
+    static tjm_default_white_detail: any = {
         /*{ clsname: {white: true/false, methods[a, b, c]} }*/
         'java.lang.String': {white: true, methods: ['toString', 'getBytes']}
     }
@@ -437,8 +438,8 @@ export namespace FCAnd {
      * @param clsWhitelist
      * @param stackFilter
      */
-    export function traceArtMethods(clazzes?: null | string[], clsWhitelist?: null | any, stackFilter?: string) {
-        traceJavaMethods(clazzes, clsWhitelist, stackFilter);
+    static traceArtMethods(clazzes?: null | string[], clsWhitelist?: null | any, stackFilter?: string) {
+        FCAnd.traceJavaMethods(clazzes, clsWhitelist, stackFilter);
     }
 
     /**
@@ -448,17 +449,17 @@ export namespace FCAnd {
      *                  { '类名': {white: true, methods: ['toString', 'getBytes']} }
      * @stackFilter 按匹配字串打印堆栈。如果要匹配 bytes 数组需要十进制无空格字串，例如："104,113,-105"
      */
-    export function traceJavaMethods(clazzes?: null | string[], clsWhitelist?: null | any, stackFilter?: string) {
+    static traceJavaMethods(clazzes?: null | string[], clsWhitelist?: null | any, stackFilter?: string) {
         let dest_cls: string[] = [];
-        let dest_white: any = {...tjm_default_white_detail, ...clsWhitelist};
+        let dest_white: any = {...FCAnd.tjm_default_white_detail, ...clsWhitelist};
         if (clazzes != null) {
-            dest_cls = tjm_default_cls.concat(clazzes);
+            dest_cls = FCAnd.tjm_default_cls.concat(clazzes);
         }
         else {
-            dest_cls = tjm_default_cls;
+            dest_cls = FCAnd.tjm_default_cls;
         }
 
-        traceJavaMethods_custom(dest_cls, dest_white, stackFilter);
+        FCAnd.traceJavaMethods_custom(dest_cls, dest_white, stackFilter);
     }
 
     /**
@@ -468,7 +469,7 @@ export namespace FCAnd {
      * @param clsWhitelist
      * @param stackFilter
      */
-    export function traceJavaMethods_custom(clazzes: string[], clsWhitelist?: null | any, stackFilter?: null | string) {
+    static traceJavaMethods_custom(clazzes: string[], clsWhitelist?: null | any, stackFilter?: null | string) {
 
         function match(destCls: string, curClsName: string) {
             let mode = destCls[0];
@@ -485,11 +486,11 @@ export namespace FCAnd {
             let str = JSON.stringify(obj);
             let stacks = null;
             if (null != stackFilter && str.indexOf(stackFilter) > -1) {
-                stacks = getStacks();
+                stacks = FCAnd.getStacks();
                 obj['stacks'] = stacks;
-                if (false == firstdiscovery) {
+                if (false == FCAnd.firstdiscovery) {
                     obj['firstdiscovery'] = true;
-                    firstdiscovery = true;
+                    FCAnd.firstdiscovery = true;
                 }
                 str = JSON.stringify(obj);
             }
@@ -608,7 +609,7 @@ export namespace FCAnd {
         });
     }
 
-    export function toJSONString(obj: any) {
+    static toJSONString(obj: any) {
         if (null == obj) {
             return "obj is null";
         }
@@ -639,7 +640,7 @@ export namespace FCAnd {
         return resstr;
     }
 
-    export function parseObject(data: any) {
+    static parseObject(data: any) {
         try {
             const declaredFields = data.class.getDeclaredFields();
             let res = {};
@@ -669,7 +670,7 @@ export namespace FCAnd {
     }
 
 
-    export function registGson() {
+    static registGson() {
         // const dexbase64 = gjson_dex;
         // DMLog.i('registGson', 'entry: ' + dexbase64.length);
         //
@@ -695,7 +696,7 @@ export namespace FCAnd {
      * @param clsname
      * @param callback 传回找到的类
      */
-    export function useWithDexClassLoader(clsname: string, callback: (cls: Java.Wrapper) => void) {
+    static useWithDexClassLoader(clsname: string, callback: (cls: Java.Wrapper) => void) {
         const tag = 'useWithDexClassLoader';
         var dexclassLoader = Java.use("dalvik.system.DexClassLoader");
         //hook its constructor $init, we will print out its four parameters.
@@ -719,7 +720,7 @@ export namespace FCAnd {
      * @param clsname   ex: org.chromium.base.PathUtils
      * @param callback
      */
-    export function useWhenLoadClass(clsname: string, callback: (cls: Java.Wrapper) => void) {
+    static useWhenLoadClass(clsname: string, callback: (cls: Java.Wrapper) => void) {
         // java.lang.ClassLoader#loadClass(java.lang.String, boolean)
         const ClassLoader = Java.use('java.lang.ClassLoader');
         ClassLoader.loadClass.overload('java.lang.String').implementation = function (name: string) {
@@ -746,7 +747,7 @@ export namespace FCAnd {
      * @param clsname
      * @param callback 传回找到的类
      */
-    export function useWithInMemoryDexClassLoader(clsname: string, callback: (cls: Java.Wrapper) => void) {
+    static useWithInMemoryDexClassLoader(clsname: string, callback: (cls: Java.Wrapper) => void) {
         const tag = 'useWithInMemoryDexClassLoader';
         //  dalvik.system.InMemoryDexClassLoader
         try {
@@ -771,7 +772,7 @@ export namespace FCAnd {
 
     }
 
-    export function useWithBaseDexClassLoader(clsname: string, callback: (cls: Java.Wrapper) => void) {
+    static useWithBaseDexClassLoader(clsname: string, callback: (cls: Java.Wrapper) => void) {
         const tag = 'useWithBaseDexClassLoader';
         var dexclassLoader = Java.use("dalvik.system.BaseDexClassLoader");
         //hook its constructor $init, we will print out its four parameters.
@@ -795,13 +796,13 @@ export namespace FCAnd {
         }
     }
 
-    export function showNativeStacks(context: any) {
+    static showNativeStacks(context: any) {
         DMLog.i('showNativeStacks', '\tBacktrace:\n\t' + Thread.backtrace(context,
             Backtracer.ACCURATE).map(DebugSymbol.fromAddress)
             .join('\n\t'));
     }
 
-    export function hook_send_recv() {
+    static hook_send_recv() {
         // lets search for common shared lib
         var myModule = Process.getModuleByName('libc.so');
         var myFuncs = ['recv', 'send'];
@@ -868,7 +869,7 @@ export namespace FCAnd {
      * @param pattern   FCCommon.str2hexstr("3C8F4F55D4B548E4EDBB1157EFAC3FC1")
      * @param distarr   替换数据，字符串可以用 FCCommon.str2hexArray("kkkkkkk")) 的返回值
      */
-    export function replaceMemoryData(addr: NativePointer, size: number, pattern: string, distarr: ArrayBuffer | number[], replaceAll: boolean) {
+    static replaceMemoryData(addr: NativePointer, size: number, pattern: string, distarr: ArrayBuffer | number[], replaceAll: boolean) {
         const tag = 'replaceMemoryData';
         let dest = Memory.scanSync(addr, size, pattern);
         if (null != dest && dest.length > 0) {
@@ -891,7 +892,7 @@ export namespace FCAnd {
      * 该方法通常用于启动时类的搜索
      * @param clsname
      */
-    export function findClass(clsname: string) {
+    static findClass(clsname: string) {
         FCAnd.useWhenLoadClass(clsname, function (cls) {
             DMLog.i('findclass useWhenLoadClass', "" + cls);
         });
@@ -911,9 +912,9 @@ export namespace FCAnd {
      * @param clsname
      * @param callback
      */
-    export function enumerateClassLoadersAndUse(clsname: string, callback: (cls: Java.Wrapper) => void) {
+    static enumerateClassLoadersAndUse(clsname: string, callback: (cls: Java.Wrapper) => void) {
         const tag = 'enumerateClassLoadersAndUse';
-        enumerateClassLoadersAndGetFactory(clsname, function (cf) {
+        FCAnd.enumerateClassLoadersAndGetFactory(clsname, function (cf) {
             try {
                 let cls = cf.use(clsname);
                 callback(cls);
@@ -924,7 +925,7 @@ export namespace FCAnd {
         });
     }
 
-    export function enumerateClassLoadersAndGetFactory(clsname: string, callback: (factory: Java.ClassFactory) => void) {
+    static enumerateClassLoadersAndGetFactory(clsname: string, callback: (factory: Java.ClassFactory) => void) {
         const tag = 'enumerateClassLoadersAndGetFactory';
         Java.enumerateClassLoaders({
             onMatch(loader) {
@@ -953,19 +954,19 @@ export namespace FCAnd {
      * @param offsetAddr
      * @param callback
      */
-    export function attachWhenSoLoad(soname: string, offsetAddr: number, callback: InvocationListenerCallbacks | InstructionProbeCallback) {
-        whenSoLoad(soname, function (mod: Module) {
+    static attachWhenSoLoad(soname: string, offsetAddr: number, callback: InvocationListenerCallbacks | InstructionProbeCallback) {
+        FCAnd.whenSoLoad(soname, function (mod: Module) {
             Interceptor.attach(mod.base.add(offsetAddr), callback);
         });
     }
 
-    export function whenSoLoad(soname: string, callback: (mod: Module) => void) {
+    static whenSoLoad(soname: string, callback: (mod: Module) => void) {
         const VERSION = Java.use('android.os.Build$VERSION');
         let dlopenFuncName = "android_dlopen_ext";
         if (VERSION.SDK_INT.value <= 23) { // 6.0 以上版本
             dlopenFuncName = "dlopen";
         }
-        var so_listener = Interceptor.attach(Module.findExportByName(null, dlopenFuncName) !, {
+        var so_listener = Interceptor.attach(Module.findGlobalExportByName(dlopenFuncName) !, {
             onEnter: function (args) {
                 this.sopath = args[0].readCString();
             },
@@ -987,8 +988,8 @@ export namespace FCAnd {
      * let prettyname = FCAnd.prettyMethod_C("_Z4hahaii");
      * @param name
      */
-    export function prettyMethod_C(name: string) {
-        let ptr__cxa_demangle = Module.findExportByName("libc++.so", "__cxa_demangle");
+    static prettyMethod_C(name: string) {
+        let ptr__cxa_demangle = Module.load("libc++.so").findExportByName("__cxa_demangle");
         if (null == ptr__cxa_demangle) {
             DMLog.e("libc++.so", "__cxa_demangle not found");
             return;
@@ -1021,7 +1022,7 @@ export namespace FCAnd {
      * @param methodId
      * @param withSignature 1: 包含签名，0: 不包含签名
      */
-    export function prettyMethod_Jni(methodId: any, withSignature: number) {
+    static prettyMethod_Jni(methodId: any, withSignature: number) {
         let result = FCCommon.newStdString();
         // @ts-ignore
         Java.api['art::ArtMethod::PrettyMethod'](result, methodId, withSignature);
@@ -1031,14 +1032,16 @@ export namespace FCAnd {
     /**
      * 获取进程名
      */
-    export function getProcessName() {
-        var openPtr = Module.getExportByName('libc.so', 'open');
+    static getProcessName() {
+        var libc = Module.load("libc.so");
+
+        var openPtr = libc.getExportByName('open');
         var open = new NativeFunction(openPtr, 'int', ['pointer', 'int']);
 
-        var readPtr = Module.getExportByName("libc.so", "read");
+        var readPtr = libc.getExportByName("read");
         var read = new NativeFunction(readPtr, "int", ["int", "pointer", "int"]);
 
-        var closePtr = Module.getExportByName('libc.so', 'close');
+        var closePtr = libc.getExportByName('close');
         var close = new NativeFunction(closePtr, 'int', ['int']);
 
         var path = Memory.allocUtf8String("/proc/self/cmdline");
@@ -1061,7 +1064,7 @@ export namespace FCAnd {
      * @param address_list  需要配合 python/android/search_svc.py 脚本生成的地址列表，传入 address_list
      *                      例如：['0x4826c', '0x487bc', '0x48dc4', '0x496d4', '0x49880', '0x499d0']
      */
-    export function watch_svc_address_list(base: NativePointer, address_list: string[]) {
+    static watch_svc_address_list(base: NativePointer, address_list: string[]) {
         address_list.forEach((addr) => {
             let addr_offset = parseInt(addr, 16);
             Interceptor.attach(base.add(addr_offset), {
@@ -1072,7 +1075,7 @@ export namespace FCAnd {
         });
     }
 
-    export function byteshexdump(bytes: any) {
+    static byteshexdump(bytes: any) {
         if (!bytes || bytes.length === 0) return;
     
         const kHexChars = "0123456789abcdef";
