@@ -13079,229 +13079,6 @@ var DMLog = class _DMLog {
   }
 };
 
-// utils/StdString.ts
-var STD_STRING_SIZE2 = 3 * Process.pointerSize;
-var StdString2 = class {
-  handle;
-  constructor() {
-    this.handle = Memory.alloc(STD_STRING_SIZE2);
-  }
-  dispose() {
-    const [data, isTiny] = this._getData();
-    if (!isTiny) {
-      Java.api.$delete(data);
-    }
-  }
-  disposeToString() {
-    const result = this.toString();
-    this.dispose();
-    return result;
-  }
-  toString() {
-    const [data] = this._getData();
-    return data.readUtf8String();
-  }
-  _getData() {
-    const str = this.handle;
-    const isTiny = (str.readU8() & 1) === 0;
-    const data = isTiny ? str.add(1) : str.add(2 * Process.pointerSize).readPointer();
-    return [data, isTiny];
-  }
-};
-
-// utils/FCCommon.ts
-var FCCommon;
-((FCCommon2) => {
-  function showStacksModInfo(context, number) {
-    var sp = context.sp;
-    for (var i = 0; i < number; i++) {
-      var curSp = sp.add(Process.pointerSize * i);
-      DMLog.i("showStacksModInfo", "curSp: " + curSp + ", val: " + curSp.readPointer() + ", module: " + FCCommon2.getModuleByAddr(curSp.readPointer()));
-    }
-  }
-  FCCommon2.showStacksModInfo = showStacksModInfo;
-  function getModuleByAddr(addr) {
-    var result = null;
-    Process.enumerateModules().forEach(function(module) {
-      if (module.base <= addr && addr <= module.base.add(module.size)) {
-        result = JSON.stringify(module);
-        return false;
-      }
-    });
-    return result;
-  }
-  FCCommon2.getModuleByAddr = getModuleByAddr;
-  function getLR(context) {
-    if (Process.arch == "arm") {
-      return context.lr;
-    } else if (Process.arch == "arm64") {
-      return context.lr;
-    } else {
-      DMLog.e("getLR", "not support current arch: " + Process.arch);
-    }
-    return ptr(0);
-  }
-  FCCommon2.getLR = getLR;
-  function dump_module(moduleName, saveDir) {
-    const tag = "dump_module";
-    const module = Process.getModuleByName(moduleName);
-    const base = module.base;
-    const size = module.size;
-    const savePath = saveDir + "/" + moduleName + "_" + base + "_" + size + ".fcdump";
-    DMLog.i(tag, "base: " + base + ", size: " + size);
-    DMLog.i(tag, "save path: " + savePath);
-    Memory.protect(base, size, "rwx");
-    let readed = base.readByteArray(size);
-    try {
-      const f = new File(savePath, "wb");
-      if (f) {
-        if (readed) {
-          f.write(readed);
-          f.flush();
-        }
-        f.close();
-      }
-    } catch (e) {
-      const fopen_ptr = Module.findGlobalExportByName("fopen");
-      const fwrite_ptr = Module.findGlobalExportByName("fwrite");
-      const fclose_ptr = Module.findGlobalExportByName("fclose");
-      if (fopen_ptr && fwrite_ptr && fclose_ptr) {
-        const fopen_func = new NativeFunction(fopen_ptr, "pointer", ["pointer", "pointer"]);
-        const fwrite_func = new NativeFunction(fwrite_ptr, "int", ["pointer", "int", "int", "pointer"]);
-        const fclose_func = new NativeFunction(fclose_ptr, "int", ["pointer"]);
-        let savePath_ptr = Memory.alloc(savePath.length + 1);
-        savePath_ptr.writeUtf8String(savePath);
-        const f = fopen_func(savePath_ptr, Memory.alloc(3).writeUtf8String("wb"));
-        DMLog.i(tag, "fopen: " + f);
-        if (f != null && readed) {
-          const readed_ptr = Memory.alloc(readed.byteLength);
-          readed_ptr.writeByteArray(readed);
-          fwrite_func(readed_ptr, readed.byteLength, 1, f);
-          fclose_func(f);
-        } else {
-          DMLog.e(tag, "failed: f->" + f + ", readed->" + readed);
-        }
-      }
-    }
-  }
-  FCCommon2.dump_module = dump_module;
-  function dump2file(addr, size, savePath) {
-    DMLog.i("dump2file", `addr: ${addr.toString(16)}, size: ${size}`);
-    let file = new File(savePath, "w+");
-    let byteArr = addr.readByteArray(size);
-    if (null != byteArr) {
-      file.write(byteArr);
-    }
-    file.close();
-  }
-  FCCommon2.dump2file = dump2file;
-  function printModules() {
-    Process.enumerateModules().forEach(function(module) {
-      DMLog.i("enumerateModules", JSON.stringify(module));
-    });
-  }
-  FCCommon2.printModules = printModules;
-  function str2hexstr(str) {
-    let res = str.split("").map((x) => x.charCodeAt(0).toString(16).padStart(2, "0")).join("");
-    return res;
-  }
-  FCCommon2.str2hexstr = str2hexstr;
-  function str2hexArray(str) {
-    return str.split("").map((x) => x.charCodeAt(0));
-  }
-  FCCommon2.str2hexArray = str2hexArray;
-  function arrayBuffer2Hex(buf) {
-    return [...new Uint8Array(buf)].map((x) => x.toString(16).padStart(2, "0")).join(" ");
-  }
-  FCCommon2.arrayBuffer2Hex = arrayBuffer2Hex;
-  function stalkerTrace(moduleName, address) {
-    const tag = "stalkerTrace";
-    let module_object = Process.findModuleByName(moduleName);
-    if (null == module_object) {
-      DMLog.e(tag, "module is null");
-      return;
-    }
-    const module_start = module_object.base;
-    const module_end = module_object.base.add(module_object.size);
-    let pre_regs = {};
-    Process.enumerateModules().forEach(function(md) {
-      if (md.name != moduleName) {
-        let memoryRange = { base: md.base, size: md.size };
-        Stalker.exclude(memoryRange);
-      }
-    });
-    let threadId = Process.getCurrentThreadId();
-    Interceptor.attach(address, {
-      onEnter: function(args) {
-        this.tid = threadId;
-        if (threadId == this.threadId) {
-          this.startFollow = true;
-          Stalker.follow(this.tid, {
-            events: {
-              call: true,
-              ret: false,
-              exec: true,
-              block: false,
-              compile: false
-            },
-            transform(iterator) {
-              let instruction = iterator.next();
-              do {
-                const startAddress = instruction.address;
-                const isModuleCode = startAddress.compare(module_start) >= 0 && startAddress.compare(module_end) === -1;
-                if (isModuleCode) {
-                  iterator.putCallout(function(context) {
-                    let pc = context.pc;
-                    let module = Process.findModuleByAddress(pc);
-                    if (module) {
-                      try {
-                        let diff_regs = get_diff_regs(context, pre_regs);
-                        if (module.name == module_object?.name) {
-                          DMLog.i(tag, `${module.name} ! ${pc.sub(module.base)} ${Instruction.parse(pc)} ${JSON.stringify(diff_regs)}`);
-                        }
-                      } catch (e) {
-                        DMLog.e(tag, e.toString());
-                      }
-                    }
-                  });
-                }
-                iterator.keep();
-              } while ((instruction = iterator.next()) != null);
-            }
-          });
-        }
-      },
-      onLeave: function(retval) {
-        if (this.startFollow != void 0 && this.startFollow == true) {
-          Stalker.unfollow(this.tid);
-          this.startFollow = false;
-        }
-      }
-    });
-  }
-  FCCommon2.stalkerTrace = stalkerTrace;
-  function get_diff_regs(context, pre_regs) {
-    var diff_regs = {};
-    for (const [reg_name, reg_value] of Object.entries(JSON.parse(JSON.stringify(context)))) {
-      if (reg_name != "pc" && pre_regs[reg_name] !== reg_value) {
-        pre_regs[reg_name] = reg_value;
-        diff_regs[reg_name] = reg_value;
-      }
-    }
-    return diff_regs;
-  }
-  FCCommon2.get_diff_regs = get_diff_regs;
-  function newStdString() {
-    return new StdString2();
-  }
-  FCCommon2.newStdString = newStdString;
-  function copyFile(srcPath, dstPath) {
-    let tmp = File.readAllBytes(srcPath);
-    File.writeAllBytes(dstPath, tmp);
-  }
-  FCCommon2.copyFile = copyFile;
-})(FCCommon || (FCCommon = {}));
-
 // utils/android/unpack/fridaUnpack.ts
 var fridaUnpack = class _fridaUnpack {
   static DEX_MAGIC = 175662436;
@@ -13396,20 +13173,259 @@ var fridaUnpack = class _fridaUnpack {
   }
 };
 
+// utils/StdString.ts
+var STD_STRING_SIZE2 = 3 * Process.pointerSize;
+var StdString2 = class {
+  handle;
+  constructor() {
+    this.handle = Memory.alloc(STD_STRING_SIZE2);
+  }
+  dispose() {
+    const [data, isTiny] = this._getData();
+    if (!isTiny) {
+      Java.api.$delete(data);
+    }
+  }
+  disposeToString() {
+    const result = this.toString();
+    this.dispose();
+    return result;
+  }
+  toString() {
+    const [data] = this._getData();
+    return data.readUtf8String();
+  }
+  _getData() {
+    const str = this.handle;
+    const isTiny = (str.readU8() & 1) === 0;
+    const data = isTiny ? str.add(1) : str.add(2 * Process.pointerSize).readPointer();
+    return [data, isTiny];
+  }
+};
+
+// utils/FCCommon.ts
+var FCCommon = class _FCCommon {
+  /**
+   * 打印指定层数的 sp，并输出 module 信息 (如果有）
+   * @param {CpuContext} context
+   * @param {number} number
+   */
+  static showStacksModInfo(context, number) {
+    var sp = context.sp;
+    for (var i = 0; i < number; i++) {
+      var curSp = sp.add(Process.pointerSize * i);
+      DMLog.i("showStacksModInfo", "curSp: " + curSp + ", val: " + curSp.readPointer() + ", module: " + _FCCommon.getModuleByAddr(curSp.readPointer()));
+    }
+  }
+  /**
+   * 根据地址获取模块信息
+   * @param {NativePointer} addr
+   * @returns {string}
+   */
+  static getModuleByAddr(addr) {
+    var result = null;
+    Process.enumerateModules().forEach(function(module) {
+      if (module.base <= addr && addr <= module.base.add(module.size)) {
+        result = JSON.stringify(module);
+        return false;
+      }
+    });
+    return result;
+  }
+  /**
+   * 获取 LR 寄存器值
+   * @param {CpuContext} context
+   * @returns {NativePointer}
+   */
+  static getLR(context) {
+    if (Process.arch == "arm") {
+      return context.lr;
+    } else if (Process.arch == "arm64") {
+      return context.lr;
+    } else {
+      DMLog.e("getLR", "not support current arch: " + Process.arch);
+    }
+    return ptr(0);
+  }
+  /**
+   * dump 指定模块并存储到指定目录
+   * @param {string} moduleName
+   * @param {string} saveDir      如果 Android 环境下应该保存在 /data/data/com.package.name/ 目录下，
+   *                              否则可能会遇到权限问题，导致保存失败。
+   */
+  static dump_module(moduleName, saveDir) {
+    const tag = "dump_module";
+    const module = Process.getModuleByName(moduleName);
+    const base = module.base;
+    const size = module.size;
+    const savePath = saveDir + "/" + moduleName + "_" + base + "_" + size + ".fcdump";
+    DMLog.i(tag, "base: " + base + ", size: " + size);
+    DMLog.i(tag, "save path: " + savePath);
+    Memory.protect(base, size, "rwx");
+    let readed = base.readByteArray(size);
+    try {
+      const f = new File(savePath, "wb");
+      if (f) {
+        if (readed) {
+          f.write(readed);
+          f.flush();
+        }
+        f.close();
+      }
+    } catch (e) {
+      const fopen_ptr = Module.findGlobalExportByName("fopen");
+      const fwrite_ptr = Module.findGlobalExportByName("fwrite");
+      const fclose_ptr = Module.findGlobalExportByName("fclose");
+      if (fopen_ptr && fwrite_ptr && fclose_ptr) {
+        const fopen_func = new NativeFunction(fopen_ptr, "pointer", ["pointer", "pointer"]);
+        const fwrite_func = new NativeFunction(fwrite_ptr, "int", ["pointer", "int", "int", "pointer"]);
+        const fclose_func = new NativeFunction(fclose_ptr, "int", ["pointer"]);
+        let savePath_ptr = Memory.alloc(savePath.length + 1);
+        savePath_ptr.writeUtf8String(savePath);
+        const f = fopen_func(savePath_ptr, Memory.alloc(3).writeUtf8String("wb"));
+        DMLog.i(tag, "fopen: " + f);
+        if (f != null && readed) {
+          const readed_ptr = Memory.alloc(readed.byteLength);
+          readed_ptr.writeByteArray(readed);
+          fwrite_func(readed_ptr, readed.byteLength, 1, f);
+          fclose_func(f);
+        } else {
+          DMLog.e(tag, "failed: f->" + f + ", readed->" + readed);
+        }
+      }
+    }
+  }
+  static dump2file(addr, size, savePath) {
+    DMLog.i("dump2file", `addr: ${addr.toString(16)}, size: ${size}`);
+    let file = new File(savePath, "w+");
+    let byteArr = addr.readByteArray(size);
+    if (null != byteArr) {
+      file.write(byteArr);
+    }
+    file.close();
+  }
+  static printModules() {
+    Process.enumerateModules().forEach(function(module) {
+      DMLog.i("enumerateModules", JSON.stringify(module));
+    });
+  }
+  static str2hexstr(str) {
+    let res = str.split("").map((x) => x.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+    return res;
+  }
+  static str2hexArray(str) {
+    return str.split("").map((x) => x.charCodeAt(0));
+  }
+  static arrayBuffer2Hex(buf) {
+    return [...new Uint8Array(buf)].map((x) => x.toString(16).padStart(2, "0")).join(" ");
+  }
+  /**
+   * stalker trace 功能
+   * 由于函数内使用 Stalker.exclude 每次使用建议重启进程，否则可能会有莫名其妙的段、访问错误
+   * @param moduleName 模块(so) 名称
+   * @param address 要监控的函数地址
+   *
+   * 用例 FCCommon.stalkerTrace("libxxx.so", addr_2333F);
+   */
+  static stalkerTrace(moduleName, address) {
+    const tag = "stalkerTrace";
+    let module_object = Process.findModuleByName(moduleName);
+    if (null == module_object) {
+      DMLog.e(tag, "module is null");
+      return;
+    }
+    const module_start = module_object.base;
+    const module_end = module_object.base.add(module_object.size);
+    let pre_regs = {};
+    Process.enumerateModules().forEach(function(md) {
+      if (md.name != moduleName) {
+        let memoryRange = { base: md.base, size: md.size };
+        Stalker.exclude(memoryRange);
+      }
+    });
+    let threadId = Process.getCurrentThreadId();
+    Interceptor.attach(address, {
+      onEnter: function(args) {
+        this.tid = threadId;
+        if (threadId == this.threadId) {
+          this.startFollow = true;
+          Stalker.follow(this.tid, {
+            events: {
+              call: true,
+              ret: false,
+              exec: true,
+              block: false,
+              compile: false
+            },
+            transform(iterator) {
+              let instruction = iterator.next();
+              do {
+                const startAddress = instruction.address;
+                const isModuleCode = startAddress.compare(module_start) >= 0 && startAddress.compare(module_end) === -1;
+                if (isModuleCode) {
+                  iterator.putCallout(function(context) {
+                    let pc = context.pc;
+                    let module = Process.findModuleByAddress(pc);
+                    if (module) {
+                      try {
+                        let diff_regs = _FCCommon.get_diff_regs(context, pre_regs);
+                        if (module.name == module_object?.name) {
+                          DMLog.i(tag, `${module.name} ! ${pc.sub(module.base)} ${Instruction.parse(pc)} ${JSON.stringify(diff_regs)}`);
+                        }
+                      } catch (e) {
+                        DMLog.e(tag, e.toString());
+                      }
+                    }
+                  });
+                }
+                iterator.keep();
+              } while ((instruction = iterator.next()) != null);
+            }
+          });
+        }
+      },
+      onLeave: function(retval) {
+        if (this.startFollow != void 0 && this.startFollow == true) {
+          Stalker.unfollow(this.tid);
+          this.startFollow = false;
+        }
+      }
+    });
+  }
+  static get_diff_regs(context, pre_regs) {
+    var diff_regs = {};
+    for (const [reg_name, reg_value] of Object.entries(JSON.parse(JSON.stringify(context)))) {
+      if (reg_name != "pc" && pre_regs[reg_name] !== reg_value) {
+        pre_regs[reg_name] = reg_value;
+        diff_regs[reg_name] = reg_value;
+      }
+    }
+    return diff_regs;
+  }
+  static newStdString() {
+    return new StdString2();
+  }
+  // 定义复制文件的函数
+  static copyFile(srcPath, dstPath) {
+    let tmp = File.readAllBytes(srcPath);
+    File.writeAllBytes(dstPath, tmp);
+  }
+};
+
 // utils/android/repinning.ts
 var sslPinningPass = class {
   static ssl_load_cert(cerPath) {
-    Java.perform(function() {
+    frida_java_bridge_default.perform(function() {
       console.log("");
       console.log("[.] Cert Pinning Bypass/Re-Pinning");
       var cf = null;
-      var CertificateFactory = Java.use("java.security.cert.CertificateFactory");
-      var FileInputStream = Java.use("java.io.FileInputStream");
-      var BufferedInputStream = Java.use("java.io.BufferedInputStream");
-      var X509Certificate = Java.use("java.security.cert.X509Certificate");
-      var KeyStore = Java.use("java.security.KeyStore");
-      var TrustManagerFactory = Java.use("javax.net.ssl.TrustManagerFactory");
-      var SSLContext = Java.use("javax.net.ssl.SSLContext");
+      var CertificateFactory = frida_java_bridge_default.use("java.security.cert.CertificateFactory");
+      var FileInputStream = frida_java_bridge_default.use("java.io.FileInputStream");
+      var BufferedInputStream = frida_java_bridge_default.use("java.io.BufferedInputStream");
+      var X509Certificate = frida_java_bridge_default.use("java.security.cert.X509Certificate");
+      var KeyStore = frida_java_bridge_default.use("java.security.KeyStore");
+      var TrustManagerFactory = frida_java_bridge_default.use("javax.net.ssl.TrustManagerFactory");
+      var SSLContext = frida_java_bridge_default.use("javax.net.ssl.SSLContext");
       console.log("[+] Loading our CA...");
       cf = CertificateFactory.getInstance("X.509");
       try {
@@ -13423,7 +13439,7 @@ var sslPinningPass = class {
       console.log("[i] ===========");
       var ca = cf.generateCertificate(bufferedInputStream);
       bufferedInputStream.close();
-      var certInfo = Java.cast(ca, X509Certificate);
+      var certInfo = frida_java_bridge_default.cast(ca, X509Certificate);
       console.log("[o] Our CA Info: " + certInfo.getSubjectDN());
       console.log("[+] Creating a KeyStore for our CA...");
       var keyStoreType = KeyStore.getDefaultType();
@@ -13449,14 +13465,14 @@ var sslPinningPass = class {
 // utils/android/multi_unpinning.ts
 var unpinning = class {
   static multi_unpinning() {
-    Java.perform(function() {
+    frida_java_bridge_default.perform(function() {
       console.log("");
       console.log("======");
       console.log("[#] Android Bypass for various Certificate Pinning methods [#]");
       console.log("======");
-      var X509TrustManager = Java.use("javax.net.ssl.X509TrustManager");
-      var SSLContext = Java.use("javax.net.ssl.SSLContext");
-      var TrustManager = Java.registerClass({
+      var X509TrustManager = frida_java_bridge_default.use("javax.net.ssl.X509TrustManager");
+      var SSLContext = frida_java_bridge_default.use("javax.net.ssl.SSLContext");
+      var TrustManager = frida_java_bridge_default.registerClass({
         // Implement a custom TrustManager
         name: "dev.asd.test.TrustManager",
         implements: [X509TrustManager],
@@ -13485,7 +13501,7 @@ var unpinning = class {
         console.log("[-] TrustManager (Android < 7) pinner not found");
       }
       try {
-        var okhttp3_Activity_1 = Java.use("okhttp3.CertificatePinner");
+        var okhttp3_Activity_1 = frida_java_bridge_default.use("okhttp3.CertificatePinner");
         okhttp3_Activity_1.check.overload("java.lang.String", "java.util.List").implementation = function(a, b) {
           console.log("[+] Bypassing OkHTTPv3 {1}: " + a);
           return;
@@ -13494,7 +13510,7 @@ var unpinning = class {
         console.log("[-] OkHTTPv3 {1} pinner not found");
       }
       try {
-        var okhttp3_Activity_2 = Java.use("okhttp3.CertificatePinner");
+        var okhttp3_Activity_2 = frida_java_bridge_default.use("okhttp3.CertificatePinner");
         okhttp3_Activity_2.check.overload("java.lang.String", "java.security.cert.Certificate").implementation = function(a, b) {
           console.log("[+] Bypassing OkHTTPv3 {2}: " + a);
           return;
@@ -13503,7 +13519,7 @@ var unpinning = class {
         console.log("[-] OkHTTPv3 {2} pinner not found");
       }
       try {
-        var okhttp3_Activity_3 = Java.use("okhttp3.CertificatePinner");
+        var okhttp3_Activity_3 = frida_java_bridge_default.use("okhttp3.CertificatePinner");
         okhttp3_Activity_3.check.overload("java.lang.String", "[Ljava.security.cert.Certificate;").implementation = function(a, b) {
           console.log("[+] Bypassing OkHTTPv3 {3}: " + a);
           return;
@@ -13512,7 +13528,7 @@ var unpinning = class {
         console.log("[-] OkHTTPv3 {3} pinner not found");
       }
       try {
-        var okhttp3_Activity_4 = Java.use("okhttp3.CertificatePinner");
+        var okhttp3_Activity_4 = frida_java_bridge_default.use("okhttp3.CertificatePinner");
         okhttp3_Activity_4["check$okhttp"].implementation = function(a, b) {
           console.log("[+] Bypassing OkHTTPv3 {4}: " + a);
         };
@@ -13520,7 +13536,7 @@ var unpinning = class {
         console.log("[-] OkHTTPv3 {4} pinner not found");
       }
       try {
-        var trustkit_Activity_1 = Java.use("com.datatheorem.android.trustkit.pinning.OkHostnameVerifier");
+        var trustkit_Activity_1 = frida_java_bridge_default.use("com.datatheorem.android.trustkit.pinning.OkHostnameVerifier");
         trustkit_Activity_1.verify.overload("java.lang.String", "javax.net.ssl.SSLSession").implementation = function(a, b) {
           console.log("[+] Bypassing Trustkit {1}: " + a);
           return true;
@@ -13529,7 +13545,7 @@ var unpinning = class {
         console.log("[-] Trustkit {1} pinner not found");
       }
       try {
-        var trustkit_Activity_2 = Java.use("com.datatheorem.android.trustkit.pinning.OkHostnameVerifier");
+        var trustkit_Activity_2 = frida_java_bridge_default.use("com.datatheorem.android.trustkit.pinning.OkHostnameVerifier");
         trustkit_Activity_2.verify.overload("java.lang.String", "java.security.cert.X509Certificate").implementation = function(a, b) {
           console.log("[+] Bypassing Trustkit {2}: " + a);
           return true;
@@ -13538,7 +13554,7 @@ var unpinning = class {
         console.log("[-] Trustkit {2} pinner not found");
       }
       try {
-        var trustkit_PinningTrustManager = Java.use("com.datatheorem.android.trustkit.pinning.PinningTrustManager");
+        var trustkit_PinningTrustManager = frida_java_bridge_default.use("com.datatheorem.android.trustkit.pinning.PinningTrustManager");
         trustkit_PinningTrustManager.checkServerTrusted.implementation = function() {
           console.log("[+] Bypassing Trustkit {3}");
         };
@@ -13546,7 +13562,7 @@ var unpinning = class {
         console.log("[-] Trustkit {3} pinner not found");
       }
       try {
-        var TrustManagerImpl = Java.use("com.android.org.conscrypt.TrustManagerImpl");
+        var TrustManagerImpl = frida_java_bridge_default.use("com.android.org.conscrypt.TrustManagerImpl");
         TrustManagerImpl.verifyChain.implementation = function(untrustedChain, trustAnchorChain, host, clientAuth, ocspData, tlsSctData) {
           console.log("[+] Bypassing TrustManagerImpl (Android > 7): " + host);
           return untrustedChain;
@@ -13555,7 +13571,7 @@ var unpinning = class {
         console.log("[-] TrustManagerImpl (Android > 7) pinner not found");
       }
       try {
-        var appcelerator_PinningTrustManager = Java.use("appcelerator.https.PinningTrustManager");
+        var appcelerator_PinningTrustManager = frida_java_bridge_default.use("appcelerator.https.PinningTrustManager");
         appcelerator_PinningTrustManager.checkServerTrusted.implementation = function() {
           console.log("[+] Bypassing Appcelerator PinningTrustManager");
         };
@@ -13563,7 +13579,7 @@ var unpinning = class {
         console.log("[-] Appcelerator PinningTrustManager pinner not found");
       }
       try {
-        var OpenSSLSocketImpl = Java.use("com.android.org.conscrypt.OpenSSLSocketImpl");
+        var OpenSSLSocketImpl = frida_java_bridge_default.use("com.android.org.conscrypt.OpenSSLSocketImpl");
         OpenSSLSocketImpl.verifyCertificateChain.implementation = function(certRefs, JavaObject, authMethod) {
           console.log("[+] Bypassing OpenSSLSocketImpl Conscrypt");
         };
@@ -13571,7 +13587,7 @@ var unpinning = class {
         console.log("[-] OpenSSLSocketImpl Conscrypt pinner not found");
       }
       try {
-        var OpenSSLEngineSocketImpl_Activity = Java.use("com.android.org.conscrypt.OpenSSLEngineSocketImpl");
+        var OpenSSLEngineSocketImpl_Activity = frida_java_bridge_default.use("com.android.org.conscrypt.OpenSSLEngineSocketImpl");
         OpenSSLEngineSocketImpl_Activity.verifyCertificateChain.overload("[Ljava.lang.Long;", "java.lang.String").implementation = function(a, b) {
           console.log("[+] Bypassing OpenSSLEngineSocketImpl Conscrypt: " + b);
         };
@@ -13579,7 +13595,7 @@ var unpinning = class {
         console.log("[-] OpenSSLEngineSocketImpl Conscrypt pinner not found");
       }
       try {
-        var OpenSSLSocketImpl_Harmony = Java.use("org.apache.harmony.xnet.provider.jsse.OpenSSLSocketImpl");
+        var OpenSSLSocketImpl_Harmony = frida_java_bridge_default.use("org.apache.harmony.xnet.provider.jsse.OpenSSLSocketImpl");
         OpenSSLSocketImpl_Harmony.verifyCertificateChain.implementation = function(asn1DerEncodedCertificateChain, authMethod) {
           console.log("[+] Bypassing OpenSSLSocketImpl Apache Harmony");
         };
@@ -13587,7 +13603,7 @@ var unpinning = class {
         console.log("[-] OpenSSLSocketImpl Apache Harmony pinner not found");
       }
       try {
-        var phonegap_Activity = Java.use("nl.xservices.plugins.sslCertificateChecker");
+        var phonegap_Activity = frida_java_bridge_default.use("nl.xservices.plugins.sslCertificateChecker");
         phonegap_Activity.execute.overload("java.lang.String", "org.json.JSONArray", "org.apache.cordova.CallbackContext").implementation = function(a, b, c) {
           console.log("[+] Bypassing PhoneGap sslCertificateChecker: " + a);
           return true;
@@ -13596,7 +13612,7 @@ var unpinning = class {
         console.log("[-] PhoneGap sslCertificateChecker pinner not found");
       }
       try {
-        var WLClient_Activity_1 = Java.use("com.worklight.wlclient.api.WLClient");
+        var WLClient_Activity_1 = frida_java_bridge_default.use("com.worklight.wlclient.api.WLClient");
         WLClient_Activity_1.getInstance().pinTrustedCertificatePublicKey.overload("java.lang.String").implementation = function(cert) {
           console.log("[+] Bypassing IBM MobileFirst pinTrustedCertificatePublicKey {1}: " + cert);
           return;
@@ -13605,7 +13621,7 @@ var unpinning = class {
         console.log("[-] IBM MobileFirst pinTrustedCertificatePublicKey {1} pinner not found");
       }
       try {
-        var WLClient_Activity_2 = Java.use("com.worklight.wlclient.api.WLClient");
+        var WLClient_Activity_2 = frida_java_bridge_default.use("com.worklight.wlclient.api.WLClient");
         WLClient_Activity_2.getInstance().pinTrustedCertificatePublicKey.overload("[Ljava.lang.String;").implementation = function(cert) {
           console.log("[+] Bypassing IBM MobileFirst pinTrustedCertificatePublicKey {2}: " + cert);
           return;
@@ -13614,7 +13630,7 @@ var unpinning = class {
         console.log("[-] IBM MobileFirst pinTrustedCertificatePublicKey {2} pinner not found");
       }
       try {
-        var worklight_Activity_1 = Java.use("com.worklight.wlclient.certificatepinning.HostNameVerifierWithCertificatePinning");
+        var worklight_Activity_1 = frida_java_bridge_default.use("com.worklight.wlclient.certificatepinning.HostNameVerifierWithCertificatePinning");
         worklight_Activity_1.verify.overload("java.lang.String", "javax.net.ssl.SSLSocket").implementation = function(a, b) {
           console.log("[+] Bypassing IBM WorkLight HostNameVerifierWithCertificatePinning {1}: " + a);
           return;
@@ -13623,7 +13639,7 @@ var unpinning = class {
         console.log("[-] IBM WorkLight HostNameVerifierWithCertificatePinning {1} pinner not found");
       }
       try {
-        var worklight_Activity_2 = Java.use("com.worklight.wlclient.certificatepinning.HostNameVerifierWithCertificatePinning");
+        var worklight_Activity_2 = frida_java_bridge_default.use("com.worklight.wlclient.certificatepinning.HostNameVerifierWithCertificatePinning");
         worklight_Activity_2.verify.overload("java.lang.String", "java.security.cert.X509Certificate").implementation = function(a, b) {
           console.log("[+] Bypassing IBM WorkLight HostNameVerifierWithCertificatePinning {2}: " + a);
           return;
@@ -13632,7 +13648,7 @@ var unpinning = class {
         console.log("[-] IBM WorkLight HostNameVerifierWithCertificatePinning {2} pinner not found");
       }
       try {
-        var worklight_Activity_3 = Java.use("com.worklight.wlclient.certificatepinning.HostNameVerifierWithCertificatePinning");
+        var worklight_Activity_3 = frida_java_bridge_default.use("com.worklight.wlclient.certificatepinning.HostNameVerifierWithCertificatePinning");
         worklight_Activity_3.verify.overload("java.lang.String", "[Ljava.lang.String;", "[Ljava.lang.String;").implementation = function(a, b) {
           console.log("[+] Bypassing IBM WorkLight HostNameVerifierWithCertificatePinning {3}: " + a);
           return;
@@ -13641,7 +13657,7 @@ var unpinning = class {
         console.log("[-] IBM WorkLight HostNameVerifierWithCertificatePinning {3} pinner not found");
       }
       try {
-        var worklight_Activity_4 = Java.use("com.worklight.wlclient.certificatepinning.HostNameVerifierWithCertificatePinning");
+        var worklight_Activity_4 = frida_java_bridge_default.use("com.worklight.wlclient.certificatepinning.HostNameVerifierWithCertificatePinning");
         worklight_Activity_4.verify.overload("java.lang.String", "javax.net.ssl.SSLSession").implementation = function(a, b) {
           console.log("[+] Bypassing IBM WorkLight HostNameVerifierWithCertificatePinning {4}: " + a);
           return true;
@@ -13650,7 +13666,7 @@ var unpinning = class {
         console.log("[-] IBM WorkLight HostNameVerifierWithCertificatePinning {4} pinner not found");
       }
       try {
-        var conscrypt_CertPinManager_Activity = Java.use("com.android.org.conscrypt.CertPinManager");
+        var conscrypt_CertPinManager_Activity = frida_java_bridge_default.use("com.android.org.conscrypt.CertPinManager");
         conscrypt_CertPinManager_Activity.isChainValid.overload("java.lang.String", "java.util.List").implementation = function(a, b) {
           console.log("[+] Bypassing Conscrypt CertPinManager: " + a);
           return true;
@@ -13659,7 +13675,7 @@ var unpinning = class {
         console.log("[-] Conscrypt CertPinManager pinner not found");
       }
       try {
-        var cwac_CertPinManager_Activity = Java.use("com.commonsware.cwac.netsecurity.conscrypt.CertPinManager");
+        var cwac_CertPinManager_Activity = frida_java_bridge_default.use("com.commonsware.cwac.netsecurity.conscrypt.CertPinManager");
         cwac_CertPinManager_Activity.isChainValid.overload("java.lang.String", "java.util.List").implementation = function(a, b) {
           console.log("[+] Bypassing CWAC-Netsecurity CertPinManager: " + a);
           return true;
@@ -13668,7 +13684,7 @@ var unpinning = class {
         console.log("[-] CWAC-Netsecurity CertPinManager pinner not found");
       }
       try {
-        var androidgap_WLCertificatePinningPlugin_Activity = Java.use("com.worklight.androidgap.plugin.WLCertificatePinningPlugin");
+        var androidgap_WLCertificatePinningPlugin_Activity = frida_java_bridge_default.use("com.worklight.androidgap.plugin.WLCertificatePinningPlugin");
         androidgap_WLCertificatePinningPlugin_Activity.execute.overload("java.lang.String", "org.json.JSONArray", "org.apache.cordova.CallbackContext").implementation = function(a, b, c) {
           console.log("[+] Bypassing Worklight Androidgap WLCertificatePinningPlugin: " + a);
           return true;
@@ -13677,7 +13693,7 @@ var unpinning = class {
         console.log("[-] Worklight Androidgap WLCertificatePinningPlugin pinner not found");
       }
       try {
-        var netty_FingerprintTrustManagerFactory = Java.use("io.netty.handler.ssl.util.FingerprintTrustManagerFactory");
+        var netty_FingerprintTrustManagerFactory = frida_java_bridge_default.use("io.netty.handler.ssl.util.FingerprintTrustManagerFactory");
         netty_FingerprintTrustManagerFactory.checkTrusted.implementation = function(type, chain) {
           console.log("[+] Bypassing Netty FingerprintTrustManagerFactory");
         };
@@ -13685,7 +13701,7 @@ var unpinning = class {
         console.log("[-] Netty FingerprintTrustManagerFactory pinner not found");
       }
       try {
-        let CertificatePinner = Java.use("okhttp3.CertificatePinner");
+        let CertificatePinner = frida_java_bridge_default.use("okhttp3.CertificatePinner");
         CertificatePinner.check.overload("java.lang.String", "java.util.List").implementation = function(str, list) {
           console.log("[+] bypass CertificatePinner {1}: " + str);
           return;
@@ -13694,7 +13710,7 @@ var unpinning = class {
         console.log("[-] CertificatePinner {1} pinner not found");
       }
       try {
-        let CertificatePinner = Java.use("okhttp3.CertificatePinner");
+        let CertificatePinner = frida_java_bridge_default.use("okhttp3.CertificatePinner");
         CertificatePinner.check.overload("java.lang.String", "[Ljava.security.cert.Certificate;").implementation = function(str, certificateArr) {
           console.log("[+] bypass CertificatePinner {2}: " + str);
           return;
@@ -13703,7 +13719,7 @@ var unpinning = class {
         console.log("[-] CertificatePinner {2} pinner not found");
       }
       try {
-        var Squareup_CertificatePinner_Activity_1 = Java.use("com.squareup.okhttp.CertificatePinner");
+        var Squareup_CertificatePinner_Activity_1 = frida_java_bridge_default.use("com.squareup.okhttp.CertificatePinner");
         Squareup_CertificatePinner_Activity_1.check.overload("java.lang.String", "java.security.cert.Certificate").implementation = function(a, b) {
           console.log("[+] Bypassing Squareup CertificatePinner {1}: " + a);
           return;
@@ -13712,7 +13728,7 @@ var unpinning = class {
         console.log("[-] Squareup CertificatePinner {1} pinner not found");
       }
       try {
-        var Squareup_CertificatePinner_Activity_2 = Java.use("com.squareup.okhttp.CertificatePinner");
+        var Squareup_CertificatePinner_Activity_2 = frida_java_bridge_default.use("com.squareup.okhttp.CertificatePinner");
         Squareup_CertificatePinner_Activity_2.check.overload("java.lang.String", "java.util.List").implementation = function(a, b) {
           console.log("[+] Bypassing Squareup CertificatePinner {2}: " + a);
           return;
@@ -13721,7 +13737,7 @@ var unpinning = class {
         console.log("[-] Squareup CertificatePinner {2} pinner not found");
       }
       try {
-        var Squareup_OkHostnameVerifier_Activity_1 = Java.use("com.squareup.okhttp.internal.tls.OkHostnameVerifier");
+        var Squareup_OkHostnameVerifier_Activity_1 = frida_java_bridge_default.use("com.squareup.okhttp.internal.tls.OkHostnameVerifier");
         Squareup_OkHostnameVerifier_Activity_1.verify.overload("java.lang.String", "java.security.cert.X509Certificate").implementation = function(a, b) {
           console.log("[+] Bypassing Squareup OkHostnameVerifier {1}: " + a);
           return true;
@@ -13730,7 +13746,7 @@ var unpinning = class {
         console.log("[-] Squareup OkHostnameVerifier pinner not found");
       }
       try {
-        var Squareup_OkHostnameVerifier_Activity_2 = Java.use("com.squareup.okhttp.internal.tls.OkHostnameVerifier");
+        var Squareup_OkHostnameVerifier_Activity_2 = frida_java_bridge_default.use("com.squareup.okhttp.internal.tls.OkHostnameVerifier");
         Squareup_OkHostnameVerifier_Activity_2.verify.overload("java.lang.String", "javax.net.ssl.SSLSession").implementation = function(a, b) {
           console.log("[+] Bypassing Squareup OkHostnameVerifier {2}: " + a);
           return true;
@@ -13739,7 +13755,7 @@ var unpinning = class {
         console.log("[-] Squareup OkHostnameVerifier pinner not found");
       }
       try {
-        var AndroidWebViewClient_Activity_1 = Java.use("android.webkit.WebViewClient");
+        var AndroidWebViewClient_Activity_1 = frida_java_bridge_default.use("android.webkit.WebViewClient");
         AndroidWebViewClient_Activity_1.onReceivedSslError.overload("android.webkit.WebView", "android.webkit.SslErrorHandler", "android.net.http.SslError").implementation = function(obj1, obj2, obj3) {
           console.log("[+] Bypassing Android WebViewClient {1}");
         };
@@ -13747,7 +13763,7 @@ var unpinning = class {
         console.log("[-] Android WebViewClient {1} pinner not found");
       }
       try {
-        var AndroidWebViewClient_Activity_2 = Java.use("android.webkit.WebViewClient");
+        var AndroidWebViewClient_Activity_2 = frida_java_bridge_default.use("android.webkit.WebViewClient");
         AndroidWebViewClient_Activity_2.onReceivedSslError.overload("android.webkit.WebView", "android.webkit.WebResourceRequest", "android.webkit.WebResourceError").implementation = function(obj1, obj2, obj3) {
           console.log("[+] Bypassing Android WebViewClient {2}");
         };
@@ -13755,7 +13771,7 @@ var unpinning = class {
         console.log("[-] Android WebViewClient {2} pinner not found");
       }
       try {
-        var CordovaWebViewClient_Activity = Java.use("org.apache.cordova.CordovaWebViewClient");
+        var CordovaWebViewClient_Activity = frida_java_bridge_default.use("org.apache.cordova.CordovaWebViewClient");
         CordovaWebViewClient_Activity.onReceivedSslError.overload("android.webkit.WebView", "android.webkit.SslErrorHandler", "android.net.http.SslError").implementation = function(obj1, obj2, obj3) {
           console.log("[+] Bypassing Apache Cordova WebViewClient");
           obj3.proceed();
@@ -13764,7 +13780,7 @@ var unpinning = class {
         console.log("[-] Apache Cordova WebViewClient pinner not found");
       }
       try {
-        var boye_AbstractVerifier = Java.use("ch.boye.httpclientandroidlib.conn.ssl.AbstractVerifier");
+        var boye_AbstractVerifier = frida_java_bridge_default.use("ch.boye.httpclientandroidlib.conn.ssl.AbstractVerifier");
         boye_AbstractVerifier.verify.implementation = function(host, ssl) {
           console.log("[+] Bypassing Boye AbstractVerifier: " + host);
         };
@@ -13776,21 +13792,43 @@ var unpinning = class {
 };
 
 // utils/android/Anti.ts
-var Anti;
-((Anti2) => {
-  function anti_InMemoryDexClassLoader(callbackfunc) {
+var Anti = class _Anti {
+  /**
+       * 动态加载 dex
+       * 在利用 InMemoryDexClassLoader 加载内存 Dex 找不到类的情况下适用。
+       * 调用方式：
+       * FCAnd.anti.anti_InMemoryDexClassLoader(function(){
+       *     const cls = Java.use('find/same/multi/dex/class');
+       *     // ...
+       * });
+       *
+       * 实现原理：
+       * const InMemoryDexClassLoader = Java.use('dalvik.system.InMemoryDexClassLoader');
+       InMemoryDexClassLoader.$init.overload('java.nio.ByteBuffer', 'java.lang.ClassLoader')
+       .implementation = function (buff, loader) {
+              this.$init(buff, loader);
+              var oldcl = Java.classFactory.loader;
+              Java.classFactory.loader = this;
+              callbackfunc();
+              Java.classFactory.loader = oldcl;
+  
+              return undefined;
+          }
+       * @param callbackfunc
+       *
+       * @deprecated The method should not be used
+       */
+  static anti_InMemoryDexClassLoader(callbackfunc) {
     throw new Error("deprecated method, should use:  FCAnd.useWithInMemoryDexClassLoader");
   }
-  Anti2.anti_InMemoryDexClassLoader = anti_InMemoryDexClassLoader;
-  function anti_debug() {
-    anti_fgets();
-    anti_exit();
-    anti_fork();
-    anti_kill();
-    anti_ptrace();
+  static anti_debug() {
+    _Anti.anti_fgets();
+    _Anti.anti_exit();
+    _Anti.anti_fork();
+    _Anti.anti_kill();
+    _Anti.anti_ptrace();
   }
-  Anti2.anti_debug = anti_debug;
-  function anti_exit() {
+  static anti_exit() {
     const exit_ptr = Module.getGlobalExportByName("_exit");
     DMLog.i("anti_exit", "exit_ptr : " + exit_ptr);
     if (null == exit_ptr) {
@@ -13805,8 +13843,7 @@ var Anti;
       return 0;
     }, "int", ["int", "int"]));
   }
-  Anti2.anti_exit = anti_exit;
-  function anti_kill() {
+  static anti_kill() {
     const kill_ptr = Module.getGlobalExportByName("kill");
     DMLog.i("anti_kill", "kill_ptr : " + kill_ptr);
     if (null == kill_ptr) {
@@ -13822,8 +13859,15 @@ var Anti;
       return 0;
     }, "int", ["int", "int"]));
   }
-  Anti2.anti_kill = anti_kill;
-  function anti_fgets() {
+  /**
+   * @state_name: cat /proc/xxx/stat ==> ...(<state_name>) S...
+   *
+   * anti fgets function include :
+   * status->TracerPid, SigBlk, S (sleeping)
+   * State->(package) S
+   * wchan->SyS_epoll_wait
+   */
+  static anti_fgets() {
     const tag = "anti_fgets";
     const fgetsPtr = Module.getGlobalExportByName("fgets");
     DMLog.i(tag, "fgets addr: " + fgetsPtr);
@@ -13864,8 +13908,7 @@ var Anti;
       return retval;
     }, "pointer", ["pointer", "int", "pointer"]));
   }
-  Anti2.anti_fgets = anti_fgets;
-  function anti_ptrace() {
+  static anti_ptrace() {
     var ptrace = Module.getGlobalExportByName("ptrace");
     if (null != ptrace) {
       DMLog.i("anti_ptrace", "ptrace addr: " + ptrace);
@@ -13875,8 +13918,10 @@ var Anti;
       }, "long", ["int", "int", "pointer", "pointer"]));
     }
   }
-  Anti2.anti_ptrace = anti_ptrace;
-  function anti_fork() {
+  /**
+   * 适用于每日优鲜的反调试
+   */
+  static anti_fork() {
     var fork_addr = Module.getGlobalExportByName("fork");
     DMLog.i("anti_fork", "fork_addr : " + fork_addr);
     if (null != fork_addr) {
@@ -13886,16 +13931,23 @@ var Anti;
       }, "int", []));
     }
   }
-  Anti2.anti_fork = anti_fork;
-  function anti_sslLoadCert(cerPath) {
+  static anti_sslLoadCert(cerPath) {
     sslPinningPass.ssl_load_cert(cerPath);
   }
-  Anti2.anti_sslLoadCert = anti_sslLoadCert;
-  function anti_ssl_unpinning() {
+  static anti_ssl_unpinning() {
     setTimeout(unpinning.multi_unpinning, 0);
   }
-  Anti2.anti_ssl_unpinning = anti_ssl_unpinning;
-  function anti_ssl_cronet_32() {
+  /**
+   * chrome cronet bypass （针对 32 位）
+   * 定位：".Android" 字符串，向上引用，查找返回值赋值函数。
+   *
+   * 搜索特征：
+   * 01 06 44 BF 6F F0 CE 00  70 47 81 04 44 BF 6F F0
+   * 95 00 70 47 41 01 44 BF  6F F0 D8 00 70 47 41 06
+   * 44 BF 6F F0 CD 00 70 47  41 07 44 BF 6F F0 C9 00
+   * 70 47 C1 07 1C BF 6F F0  C7 00 70 47 C1 01 44 BF
+   */
+  static anti_ssl_cronet_32() {
     var moduleName = "libsscronet.so";
     var searchBytes = "01 06 44 BF 6F F0 CE 00 70 47 81 04 44 BF 6F F0 95 00 70 47 41 01 44 BF 6F F0 D8 00 70 47 41 06 44 BF 6F F0 CD 00 70 47 41 07 44 BF 6F F0 C9 00 70 47 C1 07 1C BF 6F F0 C7 00 70 47 C1 01 44 BF";
     var module = Process.getModuleByName(moduleName);
@@ -13918,8 +13970,7 @@ var Anti;
       }
     });
   }
-  Anti2.anti_ssl_cronet_32 = anti_ssl_cronet_32;
-})(Anti || (Anti = {}));
+};
 
 // utils/android/jni/method_data.ts
 var BacktraceJSONContainer = class {
@@ -14007,9 +14058,9 @@ var MethodData = class _MethodData {
       }
     } else {
       if ("jstring" === type) {
-        return Java.vm.getEnv().stringFromJni(ptr2);
+        return frida_java_bridge_default.vm.getEnv().stringFromJni(ptr2);
       } else if ("jclass" === type) {
-        return Java.vm.getEnv().getClassName(ptr2);
+        return frida_java_bridge_default.vm.getEnv().getClassName(ptr2);
       } else if ("jobject" === type) {
         return _MethodData.printJObjectAsString(ptr2);
       } else if ("jmethodID" === type) {
@@ -14026,7 +14077,7 @@ var MethodData = class _MethodData {
   // 传入一个 jobject 对象，尝试将其转换为 string 并打印
   static printJObjectAsString(obj) {
     try {
-      const javaObject = Java.cast(obj, Java.use("java.lang.Object"));
+      const javaObject = frida_java_bridge_default.cast(obj, frida_java_bridge_default.use("java.lang.Object"));
       if (javaObject.getClass().getName() === "java.lang.String") {
         return javaObject.toString();
       } else {
@@ -16514,11 +16565,12 @@ var jni_struct_array = [
   "GetDirectBufferCapacity",
   "GetObjectRefType"
 ];
-var Jni;
-((Jni2) => {
-  const methodMap = /* @__PURE__ */ new Map();
-  var have_record_method_info = false;
-  function getJNIFunctionAdress(jnienv_addr, func_name) {
+var Jni = class _Jni {
+  // 定义保存函数名、签名和 jmethodID 的结构体
+  // 保存函数名、签名和 jmethodID 的 Map
+  static methodMap = /* @__PURE__ */ new Map();
+  static have_record_method_info = false;
+  static getJNIFunctionAdress(jnienv_addr, func_name) {
     let idx = jni_struct_array.indexOf(func_name);
     if (-1 == idx) {
       DMLog.e("getJNIFunctionAdress", `func name: ${func_name} not found!`);
@@ -16527,25 +16579,25 @@ var Jni;
     var offset = idx * Process.pointerSize;
     return jnienv_addr.add(offset).readPointer();
   }
-  Jni2.getJNIFunctionAdress = getJNIFunctionAdress;
-  function getJNIAddr(name) {
-    var env = Java.vm.getEnv();
+  static getJNIAddr(name) {
+    var env = frida_java_bridge_default.vm.getEnv();
     var env_ptr = env.handle.readPointer();
-    const addr = Jni2.getJNIFunctionAdress(env_ptr, name);
+    const addr = _Jni.getJNIFunctionAdress(env_ptr, name);
     return addr;
   }
-  Jni2.getJNIAddr = getJNIAddr;
-  function hookJNI(name, callbacksOrProbe, data) {
-    const addr = Jni2.getJNIAddr(name);
+  static hookJNI(name, callbacksOrProbe, data) {
+    const addr = _Jni.getJNIAddr(name);
     console.log("Jni.getJNIAddr: " + name + ", addr: " + addr);
     return Interceptor.attach(addr, callbacksOrProbe);
   }
-  Jni2.hookJNI = hookJNI;
-  function hook_registNatives() {
+  /**
+   * 分离仓库地址：https://github.com/deathmemory/fridaRegstNtv
+   */
+  static hook_registNatives() {
     const tag = "fridaRegstNtv";
-    Jni2.hookJNI("RegisterNatives", {
+    _Jni.hookJNI("RegisterNatives", {
       onEnter: function(args) {
-        var env = Java.vm.getEnv();
+        var env = frida_java_bridge_default.vm.getEnv();
         var p_size = Process.pointerSize;
         var methods = args[2];
         var methodcount = args[3].toInt32();
@@ -16571,25 +16623,26 @@ var Jni;
       }
     });
   }
-  Jni2.hook_registNatives = hook_registNatives;
-  function traceAllJNISimply() {
-    jni_struct_array.forEach(traceJNICore);
+  /**
+   * trace 所有 Jni 方法
+   * 可以配合 `python/android/traceLogCleaner.py` 脚本，格式化输出日志
+   */
+  static traceAllJNISimply() {
+    jni_struct_array.forEach(_Jni.traceJNICore);
   }
-  Jni2.traceAllJNISimply = traceAllJNISimply;
-  function traceJNI(nameArray) {
+  static traceJNI(nameArray) {
     nameArray.forEach(function(name) {
-      let idx = getJNIFunctionIndex(name);
+      let idx = _Jni.getJNIFunctionIndex(name);
       DMLog.i("traceJNI", "name: " + name + "idx: " + idx);
       if (-1 != idx) {
-        traceJNICore(name, idx);
+        _Jni.traceJNICore(name, idx);
       }
     });
   }
-  Jni2.traceJNI = traceJNI;
-  function traceJNICore(func_name, idx) {
-    Jni2.record_method_info();
+  static traceJNICore(func_name, idx) {
+    _Jni.record_method_info();
     if (!func_name.includes("reserved")) {
-      Jni2.hookJNI(func_name, {
+      _Jni.hookJNI(func_name, {
         onEnter(args) {
           let md = new MethodData(this.context, func_name, JNI_ENV_METHODS[idx], args);
           this.md = md;
@@ -16601,20 +16654,18 @@ var Jni;
       });
     }
   }
-  Jni2.traceJNICore = traceJNICore;
-  function getJNIFunctionIndex(funcName) {
+  static getJNIFunctionIndex(funcName) {
     return JNI_ENV_METHODS.findIndex((method) => method.name === funcName);
   }
-  Jni2.getJNIFunctionIndex = getJNIFunctionIndex;
-  function record_method_info() {
-    if (have_record_method_info == false) {
-      Jni2.hookJNI("GetMethodID", {
+  static record_method_info() {
+    if (_Jni.have_record_method_info == false) {
+      _Jni.hookJNI("GetMethodID", {
         onEnter: function(args) {
           this.methodName = args[2].readCString();
           this.signature = args[3].readCString();
         },
         onLeave: function(retval) {
-          methodMap.set(retval.toString(), {
+          _Jni.methodMap.set(retval.toString(), {
             methodName: this.methodName,
             signature: this.signature,
             methodId: retval,
@@ -16622,13 +16673,13 @@ var Jni;
           });
         }
       });
-      Jni2.hookJNI("GetStaticMethodID", {
+      _Jni.hookJNI("GetStaticMethodID", {
         onEnter: function(args) {
           this.methodName = args[2].readCString();
           this.signature = args[3].readCString();
         },
         onLeave: function(retval) {
-          methodMap.set(retval.toString(), {
+          _Jni.methodMap.set(retval.toString(), {
             methodName: this.methodName,
             signature: this.signature,
             methodId: retval,
@@ -16636,99 +16687,91 @@ var Jni;
           });
         }
       });
-      have_record_method_info = true;
+      _Jni.have_record_method_info = true;
     }
   }
-  Jni2.record_method_info = record_method_info;
-  function getMethodInfo(methodId) {
-    return methodMap.get(methodId.toString());
+  // 获取函数名、签名和 jmethodID 的函数
+  static getMethodInfo(methodId) {
+    return _Jni.methodMap.get(methodId.toString());
   }
-  Jni2.getMethodInfo = getMethodInfo;
-})(Jni || (Jni = {}));
+};
 
 // utils/FCAnd.ts
-var FCAnd;
-((FCAnd2) => {
-  FCAnd2.anti = Anti;
-  FCAnd2.jni = Jni;
-  FCAnd2.common = FCCommon;
-  var firstdiscovery = false;
-  function getStacks() {
+var FCAnd = class _FCAnd {
+  static anti = Anti;
+  static jni = Jni;
+  static common = FCCommon;
+  static firstdiscovery = false;
+  static getStacks() {
     return frida_java_bridge_default.use("android.util.Log").getStackTraceString(frida_java_bridge_default.use("java.lang.Exception").$new()) + "";
   }
-  FCAnd2.getStacks = getStacks;
-  function showStacks() {
+  static showStacks() {
     frida_java_bridge_default.perform(function() {
-      DMLog.d("showStacks", getStacks());
+      DMLog.d("showStacks", _FCAnd.getStacks());
     });
   }
-  FCAnd2.showStacks = showStacks;
-  function hook_uri(bShowStacks) {
+  static hook_uri(bShowStacks) {
     const Uri = frida_java_bridge_default.use("android.net.Uri");
     Uri.parse.implementation = function(str) {
       DMLog.i("hook_uri", "str: " + str);
       if (bShowStacks) {
-        showStacks();
+        _FCAnd.showStacks();
       }
       return this.parse(str);
     };
   }
-  FCAnd2.hook_uri = hook_uri;
-  function hook_url(bShowStacks) {
+  static hook_url(bShowStacks) {
     const URL = frida_java_bridge_default.use("java.net.URL");
     URL.$init.overload("java.lang.String").implementation = function(url) {
       DMLog.i("hook_url", "url: " + url);
       if (bShowStacks) {
-        showStacks();
+        _FCAnd.showStacks();
       }
       return this.$init(url);
     };
   }
-  FCAnd2.hook_url = hook_url;
-  function hook_JSONObject_getString(pKey) {
+  static hook_JSONObject_getString(pKey) {
     const JSONObject = frida_java_bridge_default.use("org.json.JSONObject");
     JSONObject.getString.implementation = function(key) {
       if (key == pKey) {
         DMLog.i("hook_JSONObject_getString", "found key: " + key);
-        showStacks();
+        _FCAnd.showStacks();
       }
       return this.getString(key);
     };
   }
-  FCAnd2.hook_JSONObject_getString = hook_JSONObject_getString;
-  function hook_fastJson(pKey) {
+  static hook_fastJson(pKey) {
     const fastJson = frida_java_bridge_default.use("com/alibaba/fastjson/JSONObject");
     fastJson.getString.implementation = function(key) {
       if (key == pKey) {
         DMLog.i("hook_fastJson getString", "found key: " + key);
-        showStacks();
+        _FCAnd.showStacks();
       }
       return this.getString(key);
     };
     fastJson.getJSONArray.implementation = function(key) {
       if (key == pKey) {
         DMLog.i("hook_fastJson getJSONArray", "found key: " + key);
-        showStacks();
+        _FCAnd.showStacks();
       }
       return this.getString(key);
     };
     fastJson.getJSONObject.implementation = function(key) {
       if (key == pKey) {
         DMLog.i("hook_fastJson getJSONObject", "found key: " + key);
-        showStacks();
+        _FCAnd.showStacks();
       }
       return this.getString(key);
     };
     fastJson.getInteger.implementation = function(key) {
       if (key == pKey) {
         DMLog.i("hook_fastJson getJSONObject", "found key: " + key);
-        showStacks();
+        _FCAnd.showStacks();
       }
       return this.getString(key);
     };
   }
-  FCAnd2.hook_fastJson = hook_fastJson;
-  function hook_Map(pKey, accurately) {
+  static hook_Map(pKey, accurately) {
     const Map2 = frida_java_bridge_default.use("java.util.Map");
     Map2.put.implementation = function(key, val) {
       var bRes = false;
@@ -16740,7 +16783,7 @@ var FCAnd;
       if (bRes) {
         DMLog.i("map", "key: " + key);
         DMLog.i("map", "val: " + val);
-        showStacks();
+        _FCAnd.showStacks();
       }
       this.put(key, val);
     };
@@ -16755,13 +16798,12 @@ var FCAnd;
       if (null != key1 && bRes) {
         DMLog.i("LinkedHashMap", "key: " + key1);
         DMLog.i("LinkedHashMap", "val: " + val);
-        showStacks();
+        _FCAnd.showStacks();
       }
       return this.put(key1, val);
     };
   }
-  FCAnd2.hook_Map = hook_Map;
-  function hook_log() {
+  static hook_log() {
     const Log = frida_java_bridge_default.use("android.util.Log");
     Log.d.overload("java.lang.String", "java.lang.String").implementation = function(tag, content) {
       DMLog.i("Log d", "tag: " + tag + ", content: " + content);
@@ -16788,12 +16830,16 @@ var FCAnd;
       return 0;
     };
   }
-  FCAnd2.hook_log = hook_log;
-  function dump_dex_common() {
+  static dump_dex_common() {
     fridaUnpack.unpack_common();
   }
-  FCAnd2.dump_dex_common = dump_dex_common;
-  function dump_dex_loadAllClass() {
+  /**
+   * 以 loadClass 方式 dump dex
+   * 调用 FCAnd.dump_dex_loadAllClass() 即可
+   * 当程序启动完成后，
+   * 调用 rpc.exports.ddc() 即可完成 dump dex
+   */
+  static dump_dex_loadAllClass() {
     let tag = "dd_loadAllClass";
     var dex_maps = {};
     var module = Process.findModuleByName("libart.so");
@@ -16830,7 +16876,7 @@ var FCAnd;
         var size = dex_maps[base];
         var magic = ptr(base).readCString();
         if (null != magic && magic.indexOf("dex") == 0) {
-          var process_name = FCAnd2.getProcessName();
+          var process_name = _FCAnd.getProcessName();
           DMLog.i(tag2, "process_name: " + process_name);
           if (process_name != "-1") {
             var dex_path = "/data/data/" + process_name + "/files/" + base + "_" + size.toString(16) + ".dex";
@@ -16902,8 +16948,7 @@ var FCAnd;
       }
     };
   }
-  FCAnd2.dump_dex_loadAllClass = dump_dex_loadAllClass;
-  function traceLoadlibrary() {
+  static traceLoadlibrary() {
     const dlopen_ptr = Module.findGlobalExportByName("dlopen");
     if (null != dlopen_ptr) {
       DMLog.i("traceLoadlibrary", "dlopen_ptr: " + dlopen_ptr);
@@ -16916,15 +16961,13 @@ var FCAnd;
       DMLog.e("traceLoadlibrary", "dlopen_ptr is null");
     }
   }
-  FCAnd2.traceLoadlibrary = traceLoadlibrary;
-  function showModules() {
+  static showModules() {
     const modules = Process.enumerateModules();
     modules.forEach(function(value, index, array) {
       DMLog.i("showModules", JSON.stringify(value));
     });
   }
-  FCAnd2.showModules = showModules;
-  function traceFopen() {
+  static traceFopen() {
     const open_ptr = Module.findGlobalExportByName("fopen");
     if (null != open_ptr) {
       DMLog.i("traceFopen", "fopen_ptr: " + open_ptr);
@@ -16937,28 +16980,38 @@ var FCAnd;
       DMLog.e("traceFopen", "fopen_ptr is null");
     }
   }
-  FCAnd2.traceFopen = traceFopen;
-  function writeMemory(addr, str) {
+  /**
+   * 写内存
+   * @param {NativePointer} addr
+   * @param {string} str
+   */
+  static writeMemory(addr, str) {
     Memory.protect(addr, str.length, "rwx");
     addr.writeAnsiString(str);
   }
-  FCAnd2.writeMemory = writeMemory;
-  function newString(res) {
+  /**
+   * 将 js object 转换成 Java String
+   * @param res
+   * @returns {any}
+   */
+  static newString(res) {
     if (null == res) {
       return null;
     }
     const String2 = frida_java_bridge_default.use("java.lang.String");
     return String2.$new(res);
   }
-  FCAnd2.newString = newString;
-  function getApplicationContext() {
+  static getApplicationContext() {
     const ActivityThread = frida_java_bridge_default.use("android.app.ActivityThread");
     const Context = frida_java_bridge_default.use("android.content.Context");
     const ctx = frida_java_bridge_default.cast(ActivityThread.currentApplication().getApplicationContext(), Context);
     return ctx;
   }
-  FCAnd2.getApplicationContext = getApplicationContext;
-  function printByteArray(jbytes) {
+  /**
+   * 将 java byte array 打印成 16 进制字符输出
+   * @param jbytes
+   */
+  static printByteArray(jbytes) {
     var result = "";
     for (var i = 0; i < jbytes.length; ++i) {
       result += " ";
@@ -16966,8 +17019,11 @@ var FCAnd;
     }
     return result;
   }
-  FCAnd2.printByteArray = printByteArray;
-  function printHashMap(data) {
+  /**
+   * 打印 java.util.HashMap
+   * @param data
+   */
+  static printHashMap(data) {
     let result = frida_java_bridge_default.cast(data, frida_java_bridge_default.use("java.util.HashMap"));
     let keys = result.keySet().toArray();
     for (let i = 0; i < keys.length; i++) {
@@ -16976,8 +17032,10 @@ var FCAnd;
       DMLog.i("printHashMap", "Key: " + key.toString() + ", Value: " + value.toString());
     }
   }
-  FCAnd2.printHashMap = printHashMap;
-  FCAnd2.tjm_default_cls = [
+  /**
+   * trace java methods 默认类
+   */
+  static tjm_default_cls = [
     // 'E:javax.crypto.Cipher',
     // 'E:javax.crypto.spec.SecretKeySpec',
     // 'E:javax.crypto.spec.IvParameterSpec',
@@ -16988,26 +17046,47 @@ var FCAnd;
     "M:java.security",
     "E:java.lang.String"
   ];
-  FCAnd2.tjm_default_white_detail = {
+  /**
+   * trace java methods 对 java.lang.String 类中的默认白名单方法名
+   */
+  static tjm_default_white_detail = {
     /*{ clsname: {white: true/false, methods[a, b, c]} }*/
     "java.lang.String": { white: true, methods: ["toString", "getBytes"] }
   };
-  function traceArtMethods(clazzes, clsWhitelist, stackFilter) {
-    traceJavaMethods(clazzes, clsWhitelist, stackFilter);
+  /**
+   * 作为 traceJavaMethods 的别称存在
+   * @param clazzes
+   * @param clsWhitelist
+   * @param stackFilter
+   */
+  static traceArtMethods(clazzes, clsWhitelist, stackFilter) {
+    _FCAnd.traceJavaMethods(clazzes, clsWhitelist, stackFilter);
   }
-  FCAnd2.traceArtMethods = traceArtMethods;
-  function traceJavaMethods(clazzes, clsWhitelist, stackFilter) {
+  /**
+   * java 方法追踪
+   * @param clazzes 要追踪类数组 ['M:Base64', 'E:java.lang.String'] ，类前面的 M 代表 match 模糊匹配，E 代表 equal 精确匹配
+   * @param clsWhitelist 指定某类方法 Hook 细则，可按白名单或黑名单过滤方法。
+   *                  { '类名': {white: true, methods: ['toString', 'getBytes']} }
+   * @stackFilter 按匹配字串打印堆栈。如果要匹配 bytes 数组需要十进制无空格字串，例如："104,113,-105"
+   */
+  static traceJavaMethods(clazzes, clsWhitelist, stackFilter) {
     let dest_cls = [];
-    let dest_white = { ...FCAnd2.tjm_default_white_detail, ...clsWhitelist };
+    let dest_white = { ..._FCAnd.tjm_default_white_detail, ...clsWhitelist };
     if (clazzes != null) {
-      dest_cls = FCAnd2.tjm_default_cls.concat(clazzes);
+      dest_cls = _FCAnd.tjm_default_cls.concat(clazzes);
     } else {
-      dest_cls = FCAnd2.tjm_default_cls;
+      dest_cls = _FCAnd.tjm_default_cls;
     }
-    traceJavaMethods_custom(dest_cls, dest_white, stackFilter);
+    _FCAnd.traceJavaMethods_custom(dest_cls, dest_white, stackFilter);
   }
-  FCAnd2.traceJavaMethods = traceJavaMethods;
-  function traceJavaMethods_custom(clazzes, clsWhitelist, stackFilter) {
+  /**
+   * 去除了默认类，放大了自由度
+   * 去除了默认 trace 类的干净方法，需要 trace 任何类，需要自己指定。
+   * @param clazzes
+   * @param clsWhitelist
+   * @param stackFilter
+   */
+  static traceJavaMethods_custom(clazzes, clsWhitelist, stackFilter) {
     function match(destCls, curClsName) {
       let mode = destCls[0];
       let ex = destCls.substr(2);
@@ -17021,11 +17100,11 @@ var FCAnd;
       let str = JSON.stringify(obj);
       let stacks = null;
       if (null != stackFilter && str.indexOf(stackFilter) > -1) {
-        stacks = getStacks();
+        stacks = _FCAnd.getStacks();
         obj["stacks"] = stacks;
-        if (false == firstdiscovery) {
+        if (false == _FCAnd.firstdiscovery) {
           obj["firstdiscovery"] = true;
-          firstdiscovery = true;
+          _FCAnd.firstdiscovery = true;
         }
         str = JSON.stringify(obj);
       }
@@ -17131,8 +17210,7 @@ var FCAnd;
       });
     });
   }
-  FCAnd2.traceJavaMethods_custom = traceJavaMethods_custom;
-  function toJSONString(obj) {
+  static toJSONString(obj) {
     if (null == obj) {
       return "obj is null";
     }
@@ -17141,7 +17219,7 @@ var FCAnd;
     try {
       GsonBuilder = frida_java_bridge_default.use("com.google.gson.GsonBuilder");
     } catch (e) {
-      FCAnd2.registGson();
+      _FCAnd.registGson();
       GsonBuilder = frida_java_bridge_default.use("com.google.gson.GsonBuilder");
     }
     if (null != GsonBuilder) {
@@ -17150,13 +17228,12 @@ var FCAnd;
         resstr = gson.toJson(obj);
       } catch (e) {
         DMLog.e("gson.toJson", "exceipt: " + e.toString());
-        resstr = FCAnd2.parseObject(obj);
+        resstr = _FCAnd.parseObject(obj);
       }
     }
     return resstr;
   }
-  FCAnd2.toJSONString = toJSONString;
-  function parseObject(data) {
+  static parseObject(data) {
     try {
       const declaredFields = data.class.getDeclaredFields();
       let res = {};
@@ -17180,8 +17257,7 @@ var FCAnd;
       return "parseObject except: " + e.toString();
     }
   }
-  FCAnd2.parseObject = parseObject;
-  function registGson() {
+  static registGson() {
     try {
       let dexpath = "/data/local/tmp/fclibs/gson.jar";
       frida_java_bridge_default.openClassFile(dexpath).load();
@@ -17189,8 +17265,12 @@ var FCAnd;
       DMLog.e("registGson", "exception, please try to run `setupAndorid.py`");
     }
   }
-  FCAnd2.registGson = registGson;
-  function useWithDexClassLoader(clsname, callback) {
+  /**
+   * 通过 DexClassLoader 加载的多 Dex，可用此方法按类名 use 并 callback 返回
+   * @param clsname
+   * @param callback 传回找到的类
+   */
+  static useWithDexClassLoader(clsname, callback) {
     const tag = "useWithDexClassLoader";
     var dexclassLoader = frida_java_bridge_default.use("dalvik.system.DexClassLoader");
     dexclassLoader.$init.implementation = function(dexPath, optimizedDirectory, librarySearchPath, parent) {
@@ -17206,8 +17286,12 @@ var FCAnd;
       }
     };
   }
-  FCAnd2.useWithDexClassLoader = useWithDexClassLoader;
-  function useWhenLoadClass(clsname, callback) {
+  /**
+   *
+   * @param clsname   ex: org.chromium.base.PathUtils
+   * @param callback
+   */
+  static useWhenLoadClass(clsname, callback) {
     const ClassLoader = frida_java_bridge_default.use("java.lang.ClassLoader");
     ClassLoader.loadClass.overload("java.lang.String").implementation = function(name) {
       const cls = this.loadClass(name);
@@ -17225,8 +17309,12 @@ var FCAnd;
       return cls;
     };
   }
-  FCAnd2.useWhenLoadClass = useWhenLoadClass;
-  function useWithInMemoryDexClassLoader(clsname, callback) {
+  /**
+   * 通过 InMemoryDexClassLoader 加载的多 Dex，可用此方法按类名 use 并 callback 返回
+   * @param clsname
+   * @param callback 传回找到的类
+   */
+  static useWithInMemoryDexClassLoader(clsname, callback) {
     const tag = "useWithInMemoryDexClassLoader";
     try {
       const InMemoryDexClassLoader = frida_java_bridge_default.use("dalvik.system.InMemoryDexClassLoader");
@@ -17245,8 +17333,7 @@ var FCAnd;
       DMLog.e(tag, e.toString());
     }
   }
-  FCAnd2.useWithInMemoryDexClassLoader = useWithInMemoryDexClassLoader;
-  function useWithBaseDexClassLoader(clsname, callback) {
+  static useWithBaseDexClassLoader(clsname, callback) {
     const tag = "useWithBaseDexClassLoader";
     var dexclassLoader = frida_java_bridge_default.use("dalvik.system.BaseDexClassLoader");
     dexclassLoader.$init.overload("java.lang.String", "java.io.File", "java.lang.String", "java.lang.ClassLoader").implementation = function(dexPath, optimizedDirectory, librarySearchPath, parent) {
@@ -17265,15 +17352,13 @@ var FCAnd;
       }
     };
   }
-  FCAnd2.useWithBaseDexClassLoader = useWithBaseDexClassLoader;
-  function showNativeStacks(context) {
+  static showNativeStacks(context) {
     DMLog.i("showNativeStacks", "	Backtrace:\n	" + Thread.backtrace(
       context,
       Backtracer.ACCURATE
     ).map(DebugSymbol.fromAddress).join("\n	"));
   }
-  FCAnd2.showNativeStacks = showNativeStacks;
-  function hook_send_recv() {
+  static hook_send_recv() {
     var myModule = Process.getModuleByName("libc.so");
     var myFuncs = ["recv", "send"];
     myModule.enumerateExports().filter((module_export) => module_export.type === "function" && myFuncs.some((fName) => module_export.name.includes(fName))).forEach((module_export) => {
@@ -17297,7 +17382,7 @@ var FCAnd;
             };
             DMLog.i(tag, "\n");
             DMLog.i(tag, JSON.stringify(data));
-            FCAnd2.showNativeStacks(this.context);
+            _FCAnd.showNativeStacks(this.context);
           } catch (err) {
             DMLog.e(tag, err);
           }
@@ -17319,8 +17404,14 @@ var FCAnd;
       });
     });
   }
-  FCAnd2.hook_send_recv = hook_send_recv;
-  function replaceMemoryData(addr, size, pattern, distarr, replaceAll) {
+  /**
+   * 搜索内存并替换目标值
+   * @param addr      搜索起始地址
+   * @param size      大小范围
+   * @param pattern   FCCommon.str2hexstr("3C8F4F55D4B548E4EDBB1157EFAC3FC1")
+   * @param distarr   替换数据，字符串可以用 FCCommon.str2hexArray("kkkkkkk")) 的返回值
+   */
+  static replaceMemoryData(addr, size, pattern, distarr, replaceAll) {
     const tag = "replaceMemoryData";
     let dest = Memory.scanSync(addr, size, pattern);
     if (null != dest && dest.length > 0) {
@@ -17336,25 +17427,33 @@ var FCAnd;
       }
     }
   }
-  FCAnd2.replaceMemoryData = replaceMemoryData;
-  function findClass(clsname) {
-    FCAnd2.useWhenLoadClass(clsname, function(cls) {
+  /**
+   * 各种搜类，发现其是否能找到该类
+   * 该方法通常用于启动时类的搜索
+   * @param clsname
+   */
+  static findClass(clsname) {
+    _FCAnd.useWhenLoadClass(clsname, function(cls) {
       DMLog.i("findclass useWhenLoadClass", "" + cls);
     });
-    FCAnd2.useWithDexClassLoader(clsname, function(cls) {
+    _FCAnd.useWithDexClassLoader(clsname, function(cls) {
       DMLog.i("findclass useWithDexClassLoader", "" + cls);
     });
-    FCAnd2.useWithBaseDexClassLoader(clsname, function(cls) {
+    _FCAnd.useWithBaseDexClassLoader(clsname, function(cls) {
       DMLog.i("findclass useWithBaseDexClassLoader", "" + cls);
     });
-    FCAnd2.useWithInMemoryDexClassLoader(clsname, function(cls) {
+    _FCAnd.useWithInMemoryDexClassLoader(clsname, function(cls) {
       DMLog.i("findclass useWithInMemoryDexClassLoader", "" + cls);
     });
   }
-  FCAnd2.findClass = findClass;
-  function enumerateClassLoadersAndUse(clsname, callback) {
+  /**
+   * 枚举 ClassLoader 找到相应的类，执行 callback
+   * @param clsname
+   * @param callback
+   */
+  static enumerateClassLoadersAndUse(clsname, callback) {
     const tag = "enumerateClassLoadersAndUse";
-    enumerateClassLoadersAndGetFactory(clsname, function(cf) {
+    _FCAnd.enumerateClassLoadersAndGetFactory(clsname, function(cf) {
       try {
         let cls = cf.use(clsname);
         callback(cls);
@@ -17363,8 +17462,7 @@ var FCAnd;
       }
     });
   }
-  FCAnd2.enumerateClassLoadersAndUse = enumerateClassLoadersAndUse;
-  function enumerateClassLoadersAndGetFactory(clsname, callback) {
+  static enumerateClassLoadersAndGetFactory(clsname, callback) {
     const tag = "enumerateClassLoadersAndGetFactory";
     frida_java_bridge_default.enumerateClassLoaders({
       onMatch(loader) {
@@ -17384,14 +17482,18 @@ var FCAnd;
       }
     });
   }
-  FCAnd2.enumerateClassLoadersAndGetFactory = enumerateClassLoadersAndGetFactory;
-  function attachWhenSoLoad(soname, offsetAddr, callback) {
-    whenSoLoad(soname, function(mod) {
+  /**
+   * 当指定 so 加载时，进行 attach
+   * @param soname
+   * @param offsetAddr
+   * @param callback
+   */
+  static attachWhenSoLoad(soname, offsetAddr, callback) {
+    _FCAnd.whenSoLoad(soname, function(mod) {
       Interceptor.attach(mod.base.add(offsetAddr), callback);
     });
   }
-  FCAnd2.attachWhenSoLoad = attachWhenSoLoad;
-  function whenSoLoad(soname, callback) {
+  static whenSoLoad(soname, callback) {
     const VERSION = frida_java_bridge_default.use("android.os.Build$VERSION");
     let dlopenFuncName = "android_dlopen_ext";
     if (VERSION.SDK_INT.value <= 23) {
@@ -17412,8 +17514,13 @@ var FCAnd;
       }
     });
   }
-  FCAnd2.whenSoLoad = whenSoLoad;
-  function prettyMethod_C(name) {
+  /**
+   * 返回C++方法的 pretty name
+   * 例如：_Z4hahaii -> haha(int, int)
+   * let prettyname = FCAnd.prettyMethod_C("_Z4hahaii");
+   * @param name
+   */
+  static prettyMethod_C(name) {
     let ptr__cxa_demangle = Module.load("libc++.so").findExportByName("__cxa_demangle");
     if (null == ptr__cxa_demangle) {
       DMLog.e("libc++.so", "__cxa_demangle not found");
@@ -17432,14 +17539,28 @@ var FCAnd;
     let result = buffaddr.readCString();
     return result;
   }
-  FCAnd2.prettyMethod_C = prettyMethod_C;
-  function prettyMethod_Jni(methodId, withSignature) {
+  /**
+   * 返回 Java 方法的 pretty name
+   * ar classname = 'java/lang/String';
+   * var env = Java.vm.getEnv();
+   * var cla = env.findClass(classname);
+   * DMLog.i("prettyMethod_Jni", "clazz:" + cla);
+   * var methodId = env.getMethodId(cla, "toString", "()Ljava/lang/String;");
+   * DMLog.i("prettyMethod_Jni", "methodId:" + methodId);
+   * let ptyName = FCAnd.prettyMethod_Jni(methodId, 1);
+   * DMLog.i("prettyMethod_Jni", "prettyMethod_Jni res: " + ptyName);
+   * @param methodId
+   * @param withSignature 1: 包含签名，0: 不包含签名
+   */
+  static prettyMethod_Jni(methodId, withSignature) {
     let result = FCCommon.newStdString();
     frida_java_bridge_default.api["art::ArtMethod::PrettyMethod"](result, methodId, withSignature);
     return result.disposeToString();
   }
-  FCAnd2.prettyMethod_Jni = prettyMethod_Jni;
-  function getProcessName() {
+  /**
+   * 获取进程名
+   */
+  static getProcessName() {
     var libc = Module.load("libc.so");
     var openPtr = libc.getExportByName("open");
     var open = new NativeFunction(openPtr, "int", ["pointer", "int"]);
@@ -17458,19 +17579,23 @@ var FCAnd;
     }
     return null;
   }
-  FCAnd2.getProcessName = getProcessName;
-  function watch_svc_address_list(base, address_list) {
+  /**
+   * 监听 svc 地址调用，并打印堆栈
+   * @param base
+   * @param address_list  需要配合 python/android/search_svc.py 脚本生成的地址列表，传入 address_list
+   *                      例如：['0x4826c', '0x487bc', '0x48dc4', '0x496d4', '0x49880', '0x499d0']
+   */
+  static watch_svc_address_list(base, address_list) {
     address_list.forEach((addr) => {
       let addr_offset = parseInt(addr, 16);
       Interceptor.attach(base.add(addr_offset), {
         onEnter: function(args) {
-          FCAnd2.showNativeStacks(this.context);
+          _FCAnd.showNativeStacks(this.context);
         }
       });
     });
   }
-  FCAnd2.watch_svc_address_list = watch_svc_address_list;
-  function byteshexdump(bytes) {
+  static byteshexdump(bytes) {
     if (!bytes || bytes.length === 0) return;
     const kHexChars = "0123456789abcdef";
     let offset = 0;
@@ -17492,8 +17617,7 @@ var FCAnd;
       offset += 16;
     }
   }
-  FCAnd2.byteshexdump = byteshexdump;
-})(FCAnd || (FCAnd = {}));
+};
 
 // utils/okhttp.ts
 function isProbablyUtf8(buffer) {
@@ -17698,7 +17822,6 @@ function hookClassMethods(className, methodName) {
 export {
   DMLog,
   FCAnd,
-  FCCommon,
   hookClassMethods,
   hookMethods,
   okhttp

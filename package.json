@@ -6,11 +6,11 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "build:esbuild": "npm exec esbuild -- --bundle --format=esm --outdir=../com.rookie.v/api --watch index.ts",
+    "build:esbuild": "npm exec esbuild -- --bundle --format=esm --outdir=dist --watch index.ts",
     "prepare": "npm run build",
     "build": "frida-compile index.ts -o index.js",
-    "watch": "frida-compile index.ts -o index.js -w",
-    "dmlog": "frida-compile ./utils/dmlog.ts -o ./utils/dmlog.js"
+    "watch": "frida-compile index.ts -o index.js -w"
+
   },
   "dependencies": {
     "frida-il2cpp-bridge": "^0.12.0",
