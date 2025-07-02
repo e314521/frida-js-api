@@ -9,7 +9,8 @@
     "build:esbuild": "npm exec esbuild -- --bundle --format=esm --outdir=dist --watch index.ts",
     "prepare": "npm run build",
     "build": "frida-compile index.ts -o index.js",
-    "watch": "frida-compile index.ts -o index.js -w"
+    "watch": "frida-compile index.ts -o index.js -w",
+    "build:esbuildtest": "npm exec esbuild -- --bundle --format=esm --outdir=../com.rookie.v/api --watch index.ts"
 
   },
   "dependencies": {
