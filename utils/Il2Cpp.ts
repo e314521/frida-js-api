@@ -105,7 +105,7 @@ export function enumerateFieldsValue(object: any) {
         depth: number
         max_depth: number
         object: any
-        constructor(object:any ,depth = 0, max_depth = 1) {
+        constructor(object:any ,depth = 0, max_depth = 0) {
             this.depth = depth
             this.max_depth = max_depth
             //console.log(this.object)
