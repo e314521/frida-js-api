@@ -25,7 +25,7 @@ function isProbablyUtf8(buffer) {
 
 function hookInterceptor(name, buffName, gzipName) {
     Java.perform(function () {
-        console.log("VERSION:", Java.use("okhttp3.OkHttp").VERSION.value)
+        //console.log("VERSION:", Java.use("okhttp3.OkHttp").VERSION.value)
 
         const CallServerInterceptor = Java.use(name);
         const BufferCls = Java.use(buffName)
@@ -67,7 +67,6 @@ function hookInterceptor(name, buffName, gzipName) {
 
         CallServerInterceptor.intercept.implementation = function (chain) {
             const logLines = [];
-
             const request = chain.request();
             const method = request.method();
             const url = request.url().toString();
