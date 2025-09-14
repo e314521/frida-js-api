@@ -63,7 +63,9 @@ function hookMethods(targetClass, targetMethod, start = null, end = null) {
 function hookClass(targetClass, targetMethod = "*"){
     Java.perform(function () {
         try {
+            console.log("hook[" + targetClass + "]成功");
             const groups = Java.enumerateMethods(targetClass + '!' + targetMethod);
+            console.log(groups)
             groups.forEach(function (group) {
                 console.log(group.loader)
                 group.classes.forEach(function (clazz) {
