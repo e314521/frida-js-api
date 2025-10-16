@@ -3,7 +3,7 @@ import Java from "frida-java-bridge";
 
 
 
-export function traceMethods(domain: string, classname: string = "*", methodname: string = "*", methodFilter: string[] = [],parameters = true, verbose = true) {
+export function traceMethods(domain: string, classname: string = "*", methodname: string = "*", methodFilter: string[] = [], parameters = true, verbose = true) {
     Il2Cpp.trace(parameters)
         .verbose(verbose)
         .assemblies(Il2Cpp.domain.assembly(domain))
@@ -17,8 +17,8 @@ export function traceMethods(domain: string, classname: string = "*", methodname
             }
         })
         .filterMethods(method => {
-            if (methodFilter){
-                if(methodFilter.includes(method.name)){
+            if (methodFilter) {
+                if (methodFilter.includes(method.name)) {
                     return false
                 }
             }
@@ -35,7 +35,7 @@ export function traceMethods(domain: string, classname: string = "*", methodname
 }
 
 
-export function traceReturnType(typename, domain: string, classname: string = "*", methodname: string = "*", methodFilter: string[] = [],parameters = true, verbose = true) {
+export function traceReturnType(typename, domain: string, classname: string = "*", methodname: string = "*", methodFilter: string[] = [], parameters = true, verbose = true) {
     Il2Cpp.trace(parameters)
         .verbose(verbose)
         .assemblies(Il2Cpp.domain.assembly(domain))
@@ -53,19 +53,19 @@ export function traceReturnType(typename, domain: string, classname: string = "*
         })
         .filterMethods(method => {
             if (typename.startsWith("*")) {
-                if(!method.returnType.name.includes(typename.substring(1)))
+                if (!method.returnType.name.includes(typename.substring(1)))
                     return false
-            }else if (method.returnType.name != typename){
+            } else if (method.returnType.name != typename) {
                 return false
             }
-            if (methodFilter){
-                if(methodFilter.includes(method.name)){
+            if (methodFilter) {
+                if (methodFilter.includes(method.name)) {
                     return false
                 }
             }
             if (methodname == "*")
                 return true;
-            
+
             if (methodname.startsWith("*")) {
                 return method.name.toLowerCase().includes(methodname.substring(1).toLowerCase())
             } else {
@@ -77,7 +77,7 @@ export function traceReturnType(typename, domain: string, classname: string = "*
 }
 export function backTraceMethods(domain: string, classname: string = "*", methodname: string = "*", parameters = true, verbose = true) {
     Il2Cpp.backtrace()
-        //.verbose(verbose)
+        .verbose(verbose)
         .assemblies(Il2Cpp.domain.assembly(domain))
         .filterClasses(Classes => {
             if (classname == "*")
@@ -88,7 +88,7 @@ export function backTraceMethods(domain: string, classname: string = "*", method
                 return Classes.name.toLowerCase() == classname.toLowerCase()
             }
         })
-        .filterMethods(method => {            
+        .filterMethods(method => {
             if (methodname == "*")
                 return true;
             if (methodname.startsWith("*")) {
@@ -101,31 +101,31 @@ export function backTraceMethods(domain: string, classname: string = "*", method
         .attach();
 }
 export function enumerateFieldsValue(object: any) {
-     class FieldsPrint{
+    class FieldsPrint {
         depth: number
         max_depth: number
         object: any
-        constructor(object:any ,depth = 0, max_depth = 0) {
+        constructor(object: any, depth = 0, max_depth = 0) {
             this.depth = depth
             this.max_depth = max_depth
             //console.log(this.object)
-            
-            if (object instanceof Il2Cpp.Object){
+
+            if (object instanceof Il2Cpp.Object) {
                 this.object = object
-            }else if (object instanceof Il2Cpp.Class){
+            } else if (object instanceof Il2Cpp.Class) {
                 this.object = object
-            }else if (object instanceof Il2Cpp.ValueType){
+            } else if (object instanceof Il2Cpp.ValueType) {
                 this.object = object
             }
         }
-        getFields(object:Il2Cpp.Object, depth = 0, fixstart = ""){
+        getFields(object: Il2Cpp.Object, depth = 0, fixstart = "") {
             var text = ""
             object.class.fields.forEach(field => {
-                if (!field.isStatic){
+                if (!field.isStatic) {
                     try {
-                        if (field.type.enumValue == 18 && depth < this.max_depth){
+                        if (field.type.enumValue == 18 && depth < this.max_depth) {
                             text += this.getFields(object.field<Il2Cpp.Object>(field.name).value, depth + 1, fixstart + field.name + ".")
-                        }else{
+                        } else {
                             text += ' '.repeat(depth) + fixstart + field.name + " = " + object.field(field.name).value + "\n"
                         }
                     } catch (error) {
@@ -138,16 +138,32 @@ export function enumerateFieldsValue(object: any) {
         }
         toString() {
             var text = ""
-            if (this.object instanceof Il2Cpp.Object){
+            if (this.object instanceof Il2Cpp.array) {
+                console.log("Il2Cpp.array")
+            }
+            if (this.object instanceof Il2Cpp.Object) {
+                console.log(this.object)
+
                 return this.getFields(this.object, this.depth)
-            }else{
+            } else {
                 return "err"
             }
             return text
-         }
-     }
+        }
+    }
     var Fields = new FieldsPrint(object)
     return Fields;
+}
+
+export function getDictionaryKeys(object: any) {
+    var ret = []
+    if (object instanceof Il2Cpp.Object) {
+        for (let ii = 0; ii < (object.method("get_Count").invoke() as number); ii++) {
+            object.method("get_Item").invoke(ii)
+        }
+    }
+    return ret
+
 }
 
 
