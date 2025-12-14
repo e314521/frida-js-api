@@ -1,7 +1,16 @@
 import "frida-il2cpp-bridge"
 import Java from "frida-java-bridge";
 
-
+function isFilter(Filters:string[], name:string) {
+    if (Filters.length == 0) {
+        return false
+    }
+    var names = name.split(".")
+    if (Filters.includes(names[names.length - 1])) {
+        return true
+    }
+    return false
+}
 
 export function traceMethods(domain: string, classname: string = "*", methodname: string = "*", methodFilter: string[] = [], parameters = true, verbose = true) {
     Il2Cpp.trace(parameters)
@@ -59,7 +68,7 @@ export function traceMethodsReturnBoolean(domain: string, classname: string = "*
             }
             
             if (methodFilter) {
-                if (methodFilter.includes(method.name)) {
+                if (isFilter(methodFilter, method.name)) {
                     return false
                 }
             }
@@ -100,7 +109,7 @@ export function traceReturnType(typename, domain: string, classname: string = "*
                 return false
             }
             if (methodFilter) {
-                if (methodFilter.includes(method.name)) {
+                if (isFilter(methodFilter, method.name)) {
                     return false
                 }
             }
@@ -349,3 +358,7 @@ export function findClass(classname: string) {
 
 
 
+// 获取类中类
+export function getNestedClasses(domain: string, classname: string, name: string) {
+    return Il2Cpp.domain.assembly(domain).image.class(classname).nested(name)
+}
