@@ -1,6 +1,7 @@
 import Java from "frida-java-bridge";
 
-function getFieldValue(obj, fieldName) {
+
+function getFieldValue(obj  : any, fieldName: string) {
     var cls = obj.getClass();
     var field = cls.getDeclaredField(fieldName);
     field.setAccessible(true);
@@ -12,7 +13,7 @@ function getFieldValue(obj, fieldName) {
 		return Java.cast(value,Java.use(value.getClass().getName()))
     return value;
 }
-function hookMethods(targetClass, targetMethod, start = null, end = null) {
+function hookMethods(targetClass: string, targetMethod: string, start?: (thisObj: any, args: any) => any, end?: (thisObj: any, ret: any, args: any) => any) {
     Java.perform(function () {
         try {
             var targetClassMethod = targetClass + '.' + targetMethod;
@@ -60,7 +61,7 @@ function hookMethods(targetClass, targetMethod, start = null, end = null) {
 
 
 }
-function hookClass(targetClass, targetMethod = "*"){
+function hookClass(targetClass: string, targetMethod: string = "*"){
     Java.perform(function () {
         try {
             console.log("hook[" + targetClass + "]成功");
