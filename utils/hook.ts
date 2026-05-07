@@ -21,7 +21,7 @@ function hookMethods(targetClass: string, targetMethod: string, start?: (thisObj
             console.log("hook[" + targetClass + "]成功");
             console.log(hook[targetMethod])
             var overloadCount = hook[targetMethod].overloads.length;
-            console.log("Tracing " + targetClassMethod + " [" + overloadCount + " overload(s)]");
+            //console.log("Tracing " + targetClassMethod + " [" + overloadCount + " overload(s)]");
             for (var i = 0; i < overloadCount; i++) {
                 hook[targetMethod].overloads[i].implementation = function () {
                     var log = targetClassMethod + "("
