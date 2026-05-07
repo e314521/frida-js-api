@@ -116,7 +116,10 @@ export class ImGUI {
     SetNextItemWidth: NativeFunction<number, [number]>;
     IsWindowAppearing: NativeFunction<number, []>;
     SetWindowSize: NativeFunction<void, [NativePointerValue, number]>;
+    SetWindowCollapsed: NativeFunction<void, [number, number]>;
     SetNextWindowCollapsed: NativeFunction<void, [number, number]>;
+    IsWindowFocused: NativeFunction<number, [number]>;
+    
     
 
 
@@ -146,7 +149,9 @@ export class ImGUI {
         this.SetNextItemWidth = new NativeFunction(this.getImGuiSymbol('ImGui::SetNextItemWidth('), 'bool', ['float'])
         this.IsWindowAppearing = new NativeFunction(this.getImGuiSymbol('ImGui::IsWindowAppearing('), 'bool', [])
         this.SetWindowSize = new NativeFunction(this.getImGuiSymbol('ImGui::SetWindowSize(ImVec2 const&, int)'), 'void', ['pointer', 'int'])
+        this.SetWindowCollapsed = new NativeFunction(this.getImGuiSymbol('ImGui::SetWindowCollapsed(bool, int)'), 'void', ['bool', 'int'])
         this.SetNextWindowCollapsed = new NativeFunction(this.getImGuiSymbol('ImGui::SetNextWindowCollapsed(bool, int)'), 'void', ['bool', 'int'])
+        this.IsWindowFocused = new NativeFunction(this.getImGuiSymbol('ImGui::IsWindowFocused('), 'bool', ['int'])
   
         
         this.renderFrame = new NativeFunction(this.libimgui.findSymbolByName('renderFrame'), 'void', [])
