@@ -1,9 +1,11 @@
 import Java from "frida-java-bridge";
-function loadImguiSo(path) {
+function loadImguiSo(path, activity) {
     try {
         // 方法1：使用 System.load（推荐，支持完整路径）
         var System = Java.use("java.lang.System");
         System.load(path);
+        Java.use("com.imgui.ImGuiView").$new(activity);
+        
     } catch (e) {
         console.log("[-] System.load 失败: " + e);
     }
@@ -31,7 +33,7 @@ export function LoadImGUI(callback: Function, so_path: string, activity_name: st
                         // 实现run方法，这是Runnable接口要求的方法
                         run: function () {
                             // 加载libimgui.so库
-                            loadImguiSo(so_path)
+                            loadImguiSo(so_path, activity)
                             callback(new ImGUI())
                             // 再次加载libimgui.so模块
                             //var libimgui = Module.load("/data/data/com.pinkcore.heros/libimgui.so")
@@ -50,6 +52,53 @@ export function LoadImGUI(callback: Function, so_path: string, activity_name: st
         });
     })
 }
+export const ImGuiWindowFlags = {
+    None: 0,
+    NoTitleBar: 1 << 0,
+    NoResize: 1 << 1,
+    NoMove: 1 << 2,
+    NoScrollbar: 1 << 3,
+    NoScrollWithMouse: 1 << 4,
+    NoCollapse: 1 << 5,
+    AlwaysAutoResize: 1 << 6,
+    NoBackground: 1 << 7,
+    NoSavedSettings: 1 << 8,
+    NoMouseInputs: 1 << 9,
+    MenuBar: 1 << 10,
+    HorizontalScrollbar: 1 << 11,
+    NoFocusOnAppearing: 1 << 12,
+    NoBringToFrontOnFocus: 1 << 13,
+    AlwaysVerticalScrollbar: 1 << 14,
+    AlwaysHorizontalScrollbar: 1 << 15,
+    NoNavInputs: 1 << 16,
+    NoNavFocus: 1 << 17,
+    UnsavedDocument: 1 << 18,
+    
+    // 组合标志
+    NoNav: (1 << 16) | (1 << 17),
+    NoDecoration: (1 << 0) | (1 << 1) | (1 << 3) | (1 << 5),
+    NoInputs: (1 << 9) | (1 << 16) | (1 << 17),
+
+    // 内部标志
+    ChildWindow: 1 << 24,
+    Tooltip: 1 << 25,
+    Popup: 1 << 26,
+    Modal: 1 << 27,
+    ChildMenu: 1 << 28,
+
+    // 过时标志 (根据版本可能已废弃)
+    NavFlattened: 1 << 29,
+    AlwaysUseWindowPadding: 1 << 30
+};
+
+export const ImGuiCond =
+{
+    None          : 0,        // No condition (always set the variable), same as _Always
+    Always        : 1 << 0,   // No condition (always set the variable), same as _None
+    Once          : 1 << 1,   // Set the variable once per runtime session (only the first call will succeed)
+    FirstUseEver  : 1 << 2,   // Set the variable if the object/window has no persistently saved data (no entry in .ini file)
+   Appearing     : 1 << 3,   // Set the variable if the object/window is appearing after being hidden/inactive (or the first time)
+};
 export class ImGUI {
     private libimgui: Module
     private __cxa_demangle: any;
@@ -65,6 +114,10 @@ export class ImGUI {
     SameLine: NativeFunction<number, [number, number]>;
     NewLine: NativeFunction<number, []>;
     SetNextItemWidth: NativeFunction<number, [number]>;
+    IsWindowAppearing: NativeFunction<number, []>;
+    SetWindowSize: NativeFunction<void, [NativePointerValue, number]>;
+    SetNextWindowCollapsed: NativeFunction<void, [number, number]>;
+    
 
 
     
@@ -91,7 +144,10 @@ export class ImGUI {
         this.SameLine = new NativeFunction(this.getImGuiSymbol('ImGui::SameLine('), 'bool', ['float','float'])
         this.NewLine = new NativeFunction(this.getImGuiSymbol('ImGui::NewLine('), 'bool', [])
         this.SetNextItemWidth = new NativeFunction(this.getImGuiSymbol('ImGui::SetNextItemWidth('), 'bool', ['float'])
-        
+        this.IsWindowAppearing = new NativeFunction(this.getImGuiSymbol('ImGui::IsWindowAppearing('), 'bool', [])
+        this.SetWindowSize = new NativeFunction(this.getImGuiSymbol('ImGui::SetWindowSize(ImVec2 const&, int)'), 'void', ['pointer', 'int'])
+        this.SetNextWindowCollapsed = new NativeFunction(this.getImGuiSymbol('ImGui::SetNextWindowCollapsed(bool, int)'), 'void', ['bool', 'int'])
+  
         
         this.renderFrame = new NativeFunction(this.libimgui.findSymbolByName('renderFrame'), 'void', [])
         // Interceptor.attach(this.renderFrame, {
