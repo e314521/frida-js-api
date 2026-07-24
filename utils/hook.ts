@@ -16,14 +16,17 @@ function getFieldValue(obj  : any, fieldName: string) {
 function hookMethods(targetClass: string, targetMethod: string, start?: (thisObj: any, args: any) => any, end?: (thisObj: any, ret: any, args: any) => any) {
     Java.perform(function () {
         try {
+            
             var targetClassMethod = targetClass + '.' + targetMethod;
             var hook = Java.use(targetClass);
-            console.log("hook[" + targetClass + "]成功");
-            console.log(hook[targetMethod])
+            
+            //console.log(hook[targetMethod])
             var overloadCount = hook[targetMethod].overloads.length;
             //console.log("Tracing " + targetClassMethod + " [" + overloadCount + " overload(s)]");
             for (var i = 0; i < overloadCount; i++) {
+                console.log("hook[" + targetClass + "]" +  hook[targetMethod].overloads[i] +  "成功");
                 hook[targetMethod].overloads[i].implementation = function () {
+                    
                     var log = targetClassMethod + "("
                     var retval = null
                     if (start) {
@@ -64,11 +67,11 @@ function hookMethods(targetClass: string, targetMethod: string, start?: (thisObj
 function hookClass(targetClass: string, targetMethod: string = "*"){
     Java.perform(function () {
         try {
+            Java.use(targetClass);
             console.log("hook[" + targetClass + "]成功");
             const groups = Java.enumerateMethods(targetClass + '!' + targetMethod);
-            console.log(groups)
             groups.forEach(function (group) {
-                console.log(group.loader)
+                //console.log(group.loader)
                 group.classes.forEach(function (clazz) {
                     console.log(clazz.name)
                     clazz.methods.forEach(function (method) {

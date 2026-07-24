@@ -1,13 +1,11 @@
 {
-    "compilerOptions": {
-        "target": "esnext",
-        "lib": ["es2022"],
-        "esModuleInterop": false,
-        "moduleResolution": "bundler",
-        "allowJs": true,
-        "strict": false,
-        "sourceMap": false
-    },
-    "files": ["index.ts","index.d.ts"],
-    "exclude": ["dist"]
-  }
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "Node16",
+    "strict": true,
+    "noEmit": true,
+    "types": ["frida-gum", "node"]
+  },
+  "include": ["utils/**/*.ts"]
+}
