@@ -13,7 +13,7 @@ function getFieldValue(obj  : any, fieldName: string) {
 		return Java.cast(value,Java.use(value.getClass().getName()))
     return value;
 }
-function hookMethods(targetClass: string, targetMethod: string, start?: (thisObj: any, args: any) => any, end?: (thisObj: any, ret: any, args: any) => any) {
+function hookMethods(targetClass: string, targetMethod: string, start?: ((thisObj: any, args: any) => any) | null, end?: ((thisObj: any, ret: any, args: any) => any) | null) {
     Java.perform(function () {
         try {
             
@@ -25,7 +25,10 @@ function hookMethods(targetClass: string, targetMethod: string, start?: (thisObj
             //console.log("Tracing " + targetClassMethod + " [" + overloadCount + " overload(s)]");
             for (var i = 0; i < overloadCount; i++) {
                 console.log("hook[" + targetClass + "]" +  hook[targetMethod].overloads[i] +  "成功");
+
                 hook[targetMethod].overloads[i].implementation = function () {
+                    
+                    
                     
                     var log = targetClassMethod + "("
                     var retval = null
@@ -50,11 +53,10 @@ function hookMethods(targetClass: string, targetMethod: string, start?: (thisObj
                     if (retval == "void") {
                         return;
                     }
-
                     return retval;
                 }
             }
-            hook.$dispose;
+            //hook.$dispose;
         } catch (e) {
             console.error(e);
             console.error("hook[" + targetClass + "]失败");
@@ -64,6 +66,31 @@ function hookMethods(targetClass: string, targetMethod: string, start?: (thisObj
 
 
 }
+
+function detachMethods(targetClass: string, targetMethod: string) {
+    Java.perform(function () {
+        try {
+            
+            var targetClassMethod = targetClass + '.' + targetMethod;
+            var hook = Java.use(targetClass);
+            
+            //console.log(hook[targetMethod])
+            var overloadCount = hook[targetMethod].overloads.length;
+            //console.log("Tracing " + targetClassMethod + " [" + overloadCount + " overload(s)]");
+            for (var i = 0; i < overloadCount; i++) {
+                console.log("detach[" + targetClass + "]" +  hook[targetMethod].overloads[i] +  "成功");
+                hook[targetMethod].overloads[i].implementation = null
+            }
+        } catch (e) {
+            console.error(e);
+            console.error("detach[" + targetClass + "]失败");
+            return
+        }
+    })
+
+
+}
+
 function hookClass(targetClass: string, targetMethod: string = "*"){
     Java.perform(function () {
         try {
@@ -99,4 +126,35 @@ function hookClass(targetClass: string, targetMethod: string = "*"){
         }
     })
 }
-export { hookMethods , hookClass, getFieldValue}
+
+function hookSvcByMemoryScan(moduleName:string) {
+    const mod = Process.findModuleByName(moduleName);
+    if (!mod) return;
+
+    console.log(`开始扫描 ${moduleName} 中的所有 SVC 指令...`);
+    
+    // 搜索 ARM64 的 svc #0 机器码特征：01 00 00 d4
+    Memory.scan(mod.base, mod.size, '01 00 00 d4', {
+        onMatch: function (address, size) {
+            console.log(`[Found] 发现 SVC 指令于地址: ${ address.sub(mod.base)}`);
+            
+            // 直接对该地址进行硬件拦截
+            Interceptor.attach(address, {
+                onEnter: function (args) {
+                    // 读取此时的 X8 寄存器
+                    const syscall_id = (this.context as Arm64CpuContext).x8.toInt32();
+                    console.log(`[Inline SVC] 地址 ${address.sub(mod.base)} 触发了系统调用: ${syscall_id}`);
+                    var backtrace = Thread.backtrace(this.context, Backtracer.ACCURATE);
+                    backtrace.forEach(function (address) {
+                        console.log("  [+] " + address.sub(mod.base));//这边查看堆栈 获取了 0x359D24 0x2EF28
+                    })
+                }
+            });
+        },
+        onComplete: function () {
+            console.log("SVC 内存扫描完毕。");
+        }
+    });
+}
+
+export { hookMethods , hookClass, getFieldValue, detachMethods}

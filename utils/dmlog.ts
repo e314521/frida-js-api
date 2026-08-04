@@ -41,4 +41,28 @@ export class DMLog {
             content: content
         }));
     }
+    static logcat() {
+        var Log: any = null;
+        var TAG = "FridaRedirect";
+
+        // 拦截重写全局 console.log
+        var oldLog = console.log;
+        console.log = function () {
+            // 先调用原有的控制台打印
+            oldLog.apply(console, arguments as any);
+
+            // 尝试转换为字符串
+            var message = Array.prototype.slice.call(arguments).join(' ');
+
+            // 异步或延迟获取 Java 环境，避免阻塞或未附加成功时崩溃
+            if (Java.available) {
+                Java.perform(function () {
+                    if (!Log) {
+                        Log = Java.use("android.util.Log");
+                    }
+                    Log.d(TAG, message);
+                });
+            }
+        };
+    }
 }
