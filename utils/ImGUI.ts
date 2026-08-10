@@ -1,6 +1,25 @@
 import Java from "frida-java-bridge";
 
-
+function checkFileExists(filePath:string) {
+    // 找到 libc 中的 access 函数
+    var p_access = Module.findGlobalExportByName("access");
+    if (!p_access) {
+        console.log("[-] 未能找到 access 函数");
+        return false;
+    }
+    
+    // 创建一个 C 语言风格的函数指针
+    // int access(const char *pathname, int mode); R_OK=4, F_OK=0 (F_OK代表只检查文件是否存在)
+    var access = new NativeFunction(p_access, 'int', ['pointer', 'int']);
+    
+    // 将 JS 字符串转换为内存中的 C 字符串
+    var c_path = Memory.allocUtf8String(filePath);
+    
+    // 调用 access。若返回 0 代表文件存在，返回 -1 代表不存在
+    var result = access(c_path, 0); 
+    
+    return result === 0;
+}
 
 function loadImguiSo(path: string, activity: Java.Wrapper<{}>) {
     try {
@@ -13,7 +32,68 @@ function loadImguiSo(path: string, activity: Java.Wrapper<{}>) {
         console.log("[-] System.load 失败: " + e);
     }
 }
+
+var isLoad = false;
+var ImGuiView = null;
+var isCallback = false
 export function LoadImGUI(callback: Function, so_path: string, activity_name: string, timeoutMs = 100000) {
+    var startTime = Date.now();
+    var interval = setInterval(function () {
+        var module = Process.findModuleByName("libimgui.so");
+        if (module == null) {
+            if (!isLoad) {
+                Java.scheduleOnMainThread(function () {
+                    var System = Java.use("java.lang.System");
+                    System.load(so_path);
+                });
+                isLoad = true;
+            }
+
+        } else {
+            if(isCallback == false){
+                isCallback = true;
+                callback(new ImGUI())
+            }
+            Java.perform(function () {
+                Java.choose(activity_name, {
+                    onMatch: function (activity) {
+                        clearInterval(interval);
+                        Java.use("com.imgui.ImGuiView").show(activity)
+                        // Java.scheduleOnMainThread(function () {
+                        //     ImGuiView = Java.use("com.imgui.ImGuiView").$new(activity);
+                        // });
+
+                    },
+                    onComplete: function () {}
+                });
+            })
+        }
+
+
+
+
+
+
+
+
+
+        // var moduleName = "libimgui.so"
+        // var module = Process.findModuleByName("libimgui.so");
+        // if (module) {
+        //     clearInterval(interval);
+        //     console.log("[+] Module " + moduleName + " found!");
+        //     Java.perform(function () {
+        //         callback(new ImGUI());
+        //     });
+        if (Date.now() - startTime > timeoutMs) {
+            clearInterval(interval);
+            console.error("[-] Timeout waiting for module");
+        }
+    }, 5000);
+
+
+}
+export function LoadImGUI1(callback: Function, so_path: string, activity_name: string, timeoutMs = 100000) {
     var startTime = Date.now();
     var interval = setInterval(function () {
         var moduleName = "libimgui.so"
@@ -31,31 +111,33 @@ export function LoadImGUI(callback: Function, so_path: string, activity_name: st
             Java.perform(function () {
                 Java.choose(activity_name, {
                     onMatch: function (activity) {
-                        
                         Java.perform(function () {
-                            var Runnable = Java.use("java.lang.Runnable");
-                            // 注释掉的代码：用于获取ImGuiView类引用
-                            //var ImGuiView = Java.use("com.imgui.ImGuiView");
-                            // 注册一个新的自定义类MyRunnable，实现Runnable接口
-                            var MyRunnable = Java.registerClass({
-                                name: 'com.imgui.MyRunnable',  // 类名
-                                implements: [Runnable],          // 实现的接口
-                                methods: {
-                                    // 实现run方法，这是Runnable接口要求的方法
-                                    run: function () {
-                                        // 加载libimgui.so库
-                                        loadImguiSo(so_path, activity)
-                                        //callback(new ImGUI())
-                                        // 再次加载libimgui.so模块
-                                        //var libimgui = Module.load("/data/data/com.pinkcore.heros/libimgui.so")
-                                        // 对libimgui进行hook操作
-                                        //hookImgui(libimgui)
-                                    }
-                                }
+                            Java.scheduleOnMainThread(function () {
+                                loadImguiSo(so_path, activity);
                             });
-                            // 提交到UI线程执行
-                            var runnable = MyRunnable.$new();
-                            activity.runOnUiThread(runnable);
+                            // var Runnable = Java.use("java.lang.Runnable");
+                            // // 注释掉的代码：用于获取ImGuiView类引用
+                            // //var ImGuiView = Java.use("com.imgui.ImGuiView");
+                            // // 注册一个新的自定义类MyRunnable，实现Runnable接口
+                            // var MyRunnable = Java.registerClass({
+                            //     name: 'com.imgui.MyRunnable',  // 类名
+                            //     implements: [Runnable],          // 实现的接口
+                            //     methods: {
+                            //         // 实现run方法，这是Runnable接口要求的方法
+                            //         run: function () {
+                            //             // 加载libimgui.so库
+                            //             loadImguiSo(so_path, activity)
+                            //             //callback(new ImGUI())
+                            //             // 再次加载libimgui.so模块
+                            //             //var libimgui = Module.load("/data/data/com.pinkcore.heros/libimgui.so")
+                            //             // 对libimgui进行hook操作
+                            //             //hookImgui(libimgui)
+                            //         }
+                            //     }
+                            // });
+                            // // 提交到UI线程执行
+                            // var runnable = MyRunnable.$new();
+                            // activity.runOnUiThread(runnable);
                         });
                         //callback(new ImGUI())
                     },
@@ -65,7 +147,7 @@ export function LoadImGUI(callback: Function, so_path: string, activity_name: st
                 });
             })
         }
-    }, 100);
+    }, 1000);
 
 
 
@@ -180,23 +262,23 @@ export const XMLDynamicBindType = {
 export type XMLDynamicBindType = typeof XMLDynamicBindType[keyof typeof XMLDynamicBindType];
 
 interface FileConfigItem {
-  value: any;
-  type: XMLDynamicBindType;
+    value: any;
+    type: XMLDynamicBindType;
 }
 
 interface ConfigItem {
-  ptr: NativePointer|null;
-  size:number;
-  config: FileConfigItem;
+    ptr: NativePointer | null;
+    size: number;
+    config: FileConfigItem;
 }
 
 // 2. 定义主配置结构（键名为任意 string）
-type Config = Record<string, ConfigItem>;
+export type ImGUIConfig = Record<string, ConfigItem>;
 type FileConfig = Record<string, FileConfigItem>;
 
 export class ImGUI {
-    
-    public config: Config = {}
+
+    public config: ImGUIConfig = {}
     public libimgui: Module
     private __cxa_demangle: any;
     private Demangle: NativeFunction<NativePointer, [NativePointerValue, NativePointerValue, NativePointerValue, NativePointerValue]>;
@@ -215,7 +297,7 @@ export class ImGUI {
     SetWindowCollapsed: NativeFunction<void, [number, number]>;
     SetNextWindowCollapsed: NativeFunction<void, [number, number]>;
     IsWindowFocused: NativeFunction<number, [number]>;
-    renderFrame: NativeFunction<void,[NativePointerValue]>;
+    renderFrame: NativeFunction<void, [NativePointerValue]>;
     readXml: NativeFunction<void, [NativePointerValue]>;
     addDynamicBindFunction: NativeFunction<void, [NativePointerValue, NativePointerValue, number, number]>;
     configPath: string;
@@ -255,7 +337,7 @@ export class ImGUI {
         this.IsWindowFocused = new NativeFunction(this.getImGuiSymbol('ImGui::IsWindowFocused('), 'bool', ['int'])
         this.renderFrame = new NativeFunction(this.libimgui.findSymbolByName('renderFrame') as NativePointerValue, 'void', ['pointer'])
         this.readXml = new NativeFunction(this.libimgui.findSymbolByName('readXml') as NativePointerValue, 'void', ['pointer'])
-        this.addDynamicBindFunction = new NativeFunction(this.libimgui.findSymbolByName('addDynamicBind') as NativePointerValue, 'void', ['pointer', 'pointer','uint','int'])
+        this.addDynamicBindFunction = new NativeFunction(this.libimgui.findSymbolByName('addDynamicBind') as NativePointerValue, 'void', ['pointer', 'pointer', 'uint', 'int'])
         this.configPath = "";
         var that = this;
         // Interceptor.attach(this.libimgui.findExportByName('onDynamic') as NativePointer, {
@@ -270,14 +352,31 @@ export class ImGUI {
 
 
         Interceptor.replace(this.libimgui.findExportByName('onDynamic') as NativePointer, new NativeCallback((name) => {
-            that.saveConfig();
-            that.onDynamic(name);
+            var key = name.readUtf8String();
+            if (key) {
+                var type = this.config[key].config.type;
+                if (type == XMLDynamicBindType.Int) {
+                    this.config[key].config.value = this.config[key].ptr?.readUInt()
+                }
+                else if (type == XMLDynamicBindType.Float) {
+                    this.config[key].config.value = this.config[key].ptr?.readFloat()
+                }
+                else if (type == XMLDynamicBindType.Bool) {
+                    this.config[key].config.value = this.config[key].ptr?.readU8() == 1
+                }
+                else if (type == XMLDynamicBindType.Chars) {
+                    this.config[key].config.value = this.config[key].ptr?.readUtf8String()
+                }
+                that.saveConfig();
+                that.onDynamic(key);
+            }
+
         }, 'void', ['pointer']))
 
 
 
 
-        
+
         // Interceptor.attach(this.renderFrame, {
         //     onEnter(args) {
         //         this.Text(Memory.allocUtf8String('Welcome to the ImGui demo!1 '));
@@ -299,8 +398,8 @@ export class ImGUI {
         //     }
         // })
     }
-    onDynamic(name:NativePointer) {
-        
+    onDynamic(name: string) {
+
     }
     findImGuiSymbol(name: string) {
         const symbol = this.libimgui.enumerateExports().find((exp) => {
@@ -316,98 +415,86 @@ export class ImGUI {
         if (!symbol) throw new Error(`Symbol ${name} not found`);
         return symbol.address;
     }
-    readConfig(filePath: string){
+    readConfig(filePath: string) {
         this.configPath = filePath;
         try {
             var file = new File(filePath, "rb");
-            var config:FileConfig = JSON.parse(file.readText());
-            for (const key in config){
-                this.config[key] = {ptr: null, size:0, config: config[key]};
+            var config: FileConfig = JSON.parse(file.readText());
+            for (const key in config) {
+                this.config[key] = { ptr: null, size: 0, config: config[key] };
             }
         } catch (error) {
 
         }
     }
-    saveConfig(){
-        if(this.configPath){
+    saveConfig() {
+        if (this.configPath) {
             if (this.timerId) {
                 clearTimeout(this.timerId)
             }
             this.timerId = setTimeout(() => {
                 this.timerId = null
                 var file = new File(this.configPath, "wb");
-                var config:FileConfig = {};
-                for (const key in this.config){
-                    var type = this.config[key].config.type;
-                    if (type == XMLDynamicBindType.Int){
-                        this.config[key].config.value = this.config[key].ptr?.readUInt()
-                    }
-                    else if (type == XMLDynamicBindType.Float){
-                        this.config[key].config.value = this.config[key].ptr?.readFloat()
-                    }
-                    else if (type == XMLDynamicBindType.Bool){
-                        this.config[key].config.value = this.config[key].ptr?.readU8() == 1
-                    }
-                    else if (type == XMLDynamicBindType.Chars){
-                        this.config[key].config.value = this.config[key].ptr?.readUtf8String()
-                    }
+                var config: FileConfig = {};
+                for (const key in this.config) {
                     config[key] = this.config[key].config;
                 }
                 file.write(JSON.stringify(config));
-            }, 2000) 
+            }, 2000)
         }
-        
+
     }
-   
-    addDynamicBind(name:string,type:XMLDynamicBindType, default_value:any){
-        if(this.config[name] == null){
-            this.config[name] = {ptr:null, size:0, config:{value:default_value, type:type}}
+
+    addDynamicBind(name: string, type: XMLDynamicBindType, default_value: any) {
+        if (this.config[name] == null) {
+            this.config[name] = { ptr: null, size: 0, config: { value: default_value, type: type } }
         }
-        if (type == XMLDynamicBindType.Int || type == XMLDynamicBindType.Float){
-            if (typeof default_value !== 'number'){
+        if (type == XMLDynamicBindType.Int || type == XMLDynamicBindType.Float) {
+            if (typeof default_value !== 'number') {
                 throw new Error("默认值错误，请输入数字");
             }
-            if(typeof this.config[name].config.value !== 'number'){
+            if (typeof this.config[name].config.value !== 'number') {
                 this.config[name].config.value = default_value
                 console.log("默认值错误，已经修改成默认");
             }
         }
-        if (type == XMLDynamicBindType.Bool){
-            
-            if (typeof default_value !== 'boolean'){
+        if (type == XMLDynamicBindType.Bool) {
+
+            if (typeof default_value !== 'boolean') {
                 throw new Error("默认值错误，请输入布尔值");
             }
-            if(typeof this.config[name].config.value !== 'boolean'){
+            if (typeof this.config[name].config.value !== 'boolean') {
                 this.config[name].config.value = default_value
                 console.log("默认值错误，已经修改成默认");
             }
         }
-        if (type == XMLDynamicBindType.Chars){
-            if (typeof default_value !== 'string'){
+        if (type == XMLDynamicBindType.Chars) {
+            if (typeof default_value !== 'string') {
                 throw new Error("默认值错误，请输入字符串");
             }
-            if (typeof this.config[name].config.value !== 'string'){
+            if (typeof this.config[name].config.value !== 'string') {
                 this.config[name].config.value = default_value
                 console.log("默认值错误，已经修改成默认");
             }
         }
-        //var malloc = new NativeFunction(<NativePointer>Module.findGlobalExportByName("malloc"), 'pointer', ['ulong']);
-        var malloc = Memory.alloc
-        if (type == XMLDynamicBindType.Int){
+        var malloc = new NativeFunction(<NativePointer>Module.findGlobalExportByName("malloc"), 'pointer', ['ulong']);
+        //var malloc = Memory.alloc
+        if (type == XMLDynamicBindType.Int) {
             this.config[name].size = Int32Array.BYTES_PER_ELEMENT
             this.config[name].ptr = malloc(this.config[name].size).writeInt(this.config[name].config.value)
-        }else if (type == XMLDynamicBindType.Bool){
+        } else if (type == XMLDynamicBindType.Bool) {
             this.config[name].size = Uint8Array.BYTES_PER_ELEMENT
-            this.config[name].ptr = malloc(this.config[name].size).writeU8(this.config[name].config.value?1:0)
-        }else if (type == XMLDynamicBindType.Float){
+            this.config[name].ptr = malloc(this.config[name].size).writeU8(this.config[name].config.value ? 1 : 0)
+        } else if (type == XMLDynamicBindType.Float) {
             this.config[name].size = Float32Array.BYTES_PER_ELEMENT
             this.config[name].ptr = malloc(this.config[name].size).writeFloat(this.config[name].config.value)
-        }else if (type == XMLDynamicBindType.Chars){
+        } else if (type == XMLDynamicBindType.Chars) {
             this.config[name].size = 1024
             this.config[name].ptr = malloc(this.config[name].size).writeUtf8String(this.config[name].config.value)
         }
-        if(this.config[name].ptr){
+        if (this.config[name].ptr) {
             this.addDynamicBindFunction(Memory.allocUtf8String(name), this.config[name].ptr, this.config[name].size, this.config[name].config.type)
         }
     }
 }
+

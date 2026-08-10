@@ -30,35 +30,26 @@ export class Lua {
         });
         Interceptor.attach(loadbuffer_ptr, {
             onEnter: function (args) {
-                var luaName = args[3].readUtf8String()
-                
-                
-                
-                if(luaName && luaName in self.lua_list){
-                    console.log(luaName)
-                    
-                    
+                this.luaName = args[3].readUtf8String()
+                if(this.luaName && this.luaName in self.lua_list){
                     var text = args[1].readUtf8String(args[2].toInt32())
                     if(text){
-                        self.lua_list[luaName].text = text
-                        self.lua_list[luaName].size = args[2].toInt32()
-                        var callback = self.lua_list[luaName].callback
-                        if(callback){
-                            callback(text)
-                        }
+                        self.lua_list[this.luaName].text = text
+                        self.lua_list[this.luaName].size = args[2].toInt32()
+                        this.callback = self.lua_list[this.luaName].callback
+                        
 
                     }
                 }
                 
+                
             },
             onLeave: function (retval) {
-
+                if(this.callback){
+                    this.callback()
+                }
             }
         });
-
-
-
-
     }
     replace(name: string, func: string, local: string = "") {
         if (this.lua_L == null) {
