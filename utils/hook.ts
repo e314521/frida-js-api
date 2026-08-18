@@ -16,14 +16,13 @@ function getFieldValue(obj: any, fieldName: string) {
 
 function hookMethod(method: Java.Method, start: Function | null = null, end: Function | null = null) {
     method.implementation = function () {
-        var result
         if (start) {
-            result = start.apply(this, arguments)
-            if (result !== undefined) {
+            var start_result = start.apply(this, arguments)
+            if (start_result !== undefined) {
                 if (method.returnType.className === "void") {
                     return
                 }
-                return result
+                return start_result
             }
         } else {
             console.log("[+] "+ method.methodName + " 触发 ->")
@@ -31,9 +30,12 @@ function hookMethod(method: Java.Method, start: Function | null = null, end: Fun
                 console.log("      -> 参数" +  index + " [" + item.className + "] " + arguments[index]);
             })
         }
-        result = method.apply(this, arguments as any);
+        var result = method.apply(this, arguments as any);
         if (end) {
-            end.apply(this, [result])
+            var end_result = end.apply(this, [result])
+            if (end_result !== undefined) {
+                return end_result
+            }
         }else{
             if (method.returnType.className !== "void") {
                 console.log("[+] "+ method.methodName + " 返回值 ->" + result)
