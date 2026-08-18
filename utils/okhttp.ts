@@ -1,29 +1,29 @@
 
 import Java from "frida-java-bridge";
 
-function isProbablyUtf8(buffer) {
-    const BufferCls = buffer.class;
-    const Character = Java.use("java.lang.Character");
+// function isProbablyUtf8(buffer) {
+//     const BufferCls = buffer.class;
+//     const Character = Java.use("java.lang.Character");
 
-    const prefix = BufferCls.$new();
-    const byteCount = Math.min(buffer.size(), 64);
-    buffer.copyTo(prefix, 0, byteCount);
+//     const prefix = BufferCls.$new();
+//     const byteCount = Math.min(buffer.size(), 64);
+//     buffer.copyTo(prefix, 0, byteCount);
 
-    for (let i = 0; i < 16; i++) {
-        if (prefix.exhausted()) break;
+//     for (let i = 0; i < 16; i++) {
+//         if (prefix.exhausted()) break;
 
-        const codePoint = prefix.readUtf8CodePoint();
-        if (Character.isISOControl(codePoint) &&
-            !Character.isWhitespace(codePoint)) {
-            return false;
-        }
-    }
+//         const codePoint = prefix.readUtf8CodePoint();
+//         if (Character.isISOControl(codePoint) &&
+//             !Character.isWhitespace(codePoint)) {
+//             return false;
+//         }
+//     }
 
-    return true;
-}
+//     return true;
+// }
 
 
-function hookInterceptor(name, buffName, gzipName) {
+function hookInterceptor(name: string, buffName: string, gzipName: string) {
     Java.perform(function () {
         //console.log("VERSION:", Java.use("okhttp3.OkHttp").VERSION.value)
 
@@ -34,7 +34,7 @@ function hookInterceptor(name, buffName, gzipName) {
         //const String = Java.use("java.lang.String");xe2
         var Charset = Java.use("java.nio.charset.Charset")
         var utf8Charset = Charset.forName("UTF-8")
-        var BufferClsToString = null
+        var BufferClsToString:any = null
         for (const method of BufferCls.class.getMethods()) {
             const params = method.getParameterTypes();
             if (params.length == 1 && params[0].getName() === "java.nio.charset.Charset") {
@@ -65,7 +65,7 @@ function hookInterceptor(name, buffName, gzipName) {
         //const BufferCls = Java.use("okio.Buffer");
 
 
-        CallServerInterceptor.intercept.implementation = function (chain) {
+        CallServerInterceptor.intercept.implementation = function (chain:any) {
             const logLines = [];
             const request = chain.request();
             const method = request.method();
@@ -220,7 +220,7 @@ function hookInterceptor(name, buffName, gzipName) {
 
 function detectOkHttpVersion() {
     Java.perform(function () {
-        const hasClass = (name) => {
+        const hasClass = (name:string) => {
             try {
                 Java.use(name);
                 return true;
